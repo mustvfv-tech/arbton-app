@@ -259,7 +259,11 @@
     const names = {};
     OFFICIAL.forEach(function (n) { names[norm(n)] = n; });
     Object.keys(res[2]).forEach(function (k) { names[k] = res[2][k]; });
-    gifts.forEach(function (g) { g.official = names[norm(g.name)] || names[norm(g.id)] || g.name; });
+    gifts.forEach(function (g) {
+      const hit = names[norm(g.name)] || names[norm(g.id)];
+      g.official = hit || g.name;
+      if (hit) g.name = hit; // يعرض الاسم الرسمي (Plush Pepe) بدل الجمع (Plush Pepes)
+    });
     return { gifts: gifts, models: res[0], rate: res[1], source: hostOf(f.url) };
   }
 

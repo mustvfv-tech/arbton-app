@@ -19,7 +19,7 @@ en: {
   metric:'Size by', minted:'Minted', max_supply:'Max supply', rarity:'Rarity', model:'Model',
   portfolio_chart:'Portfolio value', delete_collection:'Delete collection', preset:'Hot', total:'Total',
   collections:'Collections', daily_change:'Daily change', live:'LIVE', no_history:'No price history for this item yet.',
-  no_models:'No model data for this collection.', listings:'Listings', recent_sales:'Recent sales', data_credit:'Data', images_credit:'Gift images & names', diagnostics:'Diagnostics'
+  no_models:'No model data for this collection.', listings:'Listings', recent_sales:'Recent sales', data_credit:'Data', images_credit:'Gift images & names', diagnostics:'Diagnostics', daily_note:'One floor snapshot per day (Fragment). The history grows over time.', market_src:'Fragment'
 },
 ru: {
   crypto:'Крипто', gifts:'Подарки', profile:'Профиль', settings:'Настройки',
@@ -41,7 +41,7 @@ ru: {
   metric:'Размер по', minted:'Выпущено', max_supply:'Макс. выпуск', rarity:'Редкость', model:'Модель',
   portfolio_chart:'Стоимость портфеля', delete_collection:'Удалить коллекцию', preset:'Горячие', total:'Итого',
   collections:'Коллекции', daily_change:'Изменение за день', live:'LIVE', no_history:'Истории цен пока нет.',
-  no_models:'Нет данных по моделям.', listings:'Лоты', recent_sales:'Недавние продажи', data_credit:'Данные', images_credit:'Изображения и названия подарков', diagnostics:'Диагностика'
+  no_models:'Нет данных по моделям.', listings:'Лоты', recent_sales:'Недавние продажи', data_credit:'Данные', images_credit:'Изображения и названия подарков', diagnostics:'Диагностика', daily_note:'Один снимок флора в день (Fragment). История будет расти.', market_src:'Fragment'
 },
 ar: {
   crypto:'العملات', gifts:'الهدايا', profile:'الملف', settings:'الإعدادات',
@@ -63,6 +63,6 @@ ar: {
   metric:'الحجم حسب', minted:'المُصدَر', max_supply:'الحد الأقصى', rarity:'الندرة', model:'النموذج',
   portfolio_chart:'قيمة المحفظة', delete_collection:'حذف المجموعة', preset:'الأكثر حركة', total:'الإجمالي',
   collections:'المجموعات', daily_change:'التغيّر اليومي', live:'مباشر', no_history:'لا يوجد تاريخ أسعار لهذا العنصر بعد.',
-  no_models:'لا توجد بيانات نماذج لهذه المجموعة.', listings:'العروض', recent_sales:'مبيعات حديثة', data_credit:'البيانات', images_credit:'صور وأسماء الهدايا', diagnostics:'تشخيص الاتصال'
+  no_models:'لا توجد بيانات نماذج لهذه المجموعة.', listings:'العروض', recent_sales:'مبيعات حديثة', data_credit:'البيانات', images_credit:'صور وأسماء الهدايا', diagnostics:'تشخيص الاتصال', daily_note:'سعر فلور واحد كل يوم (من Fragment). التاريخ بيزيد مع الوقت.', market_src:'Fragment'
 }
 };
