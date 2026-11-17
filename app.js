@@ -75,14 +75,21 @@ function gImg(g, model, cls) {
   var ph = Gifts.img(g.name + (model || ''));
   var urls = Gifts.mode === 'live' ? Gifts.imgs(g, model) : [];
   return '<img class="' + cls + '" src="' + esc(urls.length ? urls[0] : ph) + '" data-alts="' + esc(urls.slice(1).join('|')) +
-    '" data-fb="' + esc(ph) + '" loading="lazy" decoding="async" alt="">';
+    '" data-fb="' + esc(ph) + '"' + (Gifts.mode === 'live' && !model && g.id ? ' data-gid="' + esc(g.id) + '"' : '') +
+    ' loading="lazy" decoding="async" alt="">';
 }
 document.addEventListener('error', function (e) {
   var im = e.target;
   if (!im || im.tagName !== 'IMG' || !im.dataset) return;
   var alts = (im.dataset.alts || '').split('|').filter(Boolean);
-  if (alts.length) { im.dataset.alts = alts.slice(1).join('|'); im.src = alts[0]; }
-  else if (im.dataset.fb && im.src !== im.dataset.fb) { im.src = im.dataset.fb; }
+  if (alts.length) { im.dataset.alts = alts.slice(1).join('|'); im.src = alts[0]; return; }
+  // مفيش Original.png للهدايا القديمة: نجيب أسماء النماذج ونستخدم صورة أول نموذج
+  if (im.dataset.gid && !im.dataset.tried) {
+    im.dataset.tried = '1';
+    Gifts.firstModelImg(im.dataset.gid).then(function (u) { im.src = u || im.dataset.fb; }).catch(function () { im.src = im.dataset.fb; });
+    return;
+  }
+  if (im.dataset.fb && im.src !== im.dataset.fb) { im.src = im.dataset.fb; }
 }, true);
 
 /* ---------- formatting ---------- */
@@ -479,7 +486,7 @@ function paintModels(g) {
     '<div class="dhead"><button class="ib" data-act="back">' + ICON.back + '</button><div class="dn" style="flex:1;text-align:center;margin-inline-end:36px">' + esc(g.name) + '</div></div>' +
     '<div class="tabs">' + tabs.map(function (x) { return '<button class="' + (v === x[0] ? 'on' : '') + '" data-act="mtab" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
     '<div class="grid">' + L.map(function (m) {
-      return '<div class="cell" data-act="model" data-v="' + g.id + '" data-m="' + esc(m.name) + '">' + gImg(g, m.name, 'lg sq big') + '<b>' + esc(m.name) + '</b><span class="p">' + gv(m.floor) + '</span>' + (m.rarity != null && m.change == null ? '<span class="p">' + m.rarity + '‰</span>' : '') + pillN(m.change) + '</div>';
+      return '<div class="cell" data-act="model" data-v="' + g.id + '" data-m="' + esc(m.name) + '">' + gImg(g, m.name, 'lg sq big') + '<b>' + esc(m.name) + '</b>' + (m.floor != null ? '<span class="p">' + gv(m.floor) + '</span>' : '') + (m.rarity != null && m.change == null ? '<span class="p">' + m.rarity + '‰</span>' : '') + pillN(m.change) + '</div>';
     }).join('') + '</div>' + (S.ms.length ? '' : '<div class="empty">' + t('no_models') + '</div>');
 }
 function vGift(tok) {
@@ -491,7 +498,7 @@ function vGift(tok) {
       if (tok !== S.tok) return;
       var name = g.name, floor = g.floor, chg = g.change, rar = null, lst = null, isModel = false;
       if (ms) { var m = ms.find(function (x) { return x.name === S.view.model; }); if (m) { isModel = true; name = g.name + ' · ' + m.name; floor = m.floor; chg = m.change; rar = m.rarity; lst = m.listings; } }
-      var ov = [[t('floor'), gv(floor)]];
+      var ov = floor != null ? [[t('floor'), gv(floor)]] : [];
       if (chg != null) ov.push([t(Gifts.hasSupply ? 'change24' : 'daily_change'), pill(chg)]);
       if (isModel) {
         if (rar != null) ov.push([t('rarity'), rar + '‰']);
@@ -501,10 +508,10 @@ function vGift(tok) {
         if (Gifts.hasSupply) ov.push([t('minted'), nf(g.supply, 0)], [t('max_supply'), nf(g.maxSupply, 0)], [t('market_cap'), gvBig(g.floor * g.supply)]);
       }
       chartPage({
-        imgHtml: gImg(g, isModel ? S.view.model : null, 'lg sq'), title: name, price: gv(floor), chg: chg, tfs: GTFS, tf: '1d', fname: g.name,
+        imgHtml: gImg(g, isModel ? S.view.model : null, 'lg sq'), title: name, price: floor != null ? gv(floor) : '—', chg: chg, tfs: GTFS, tf: '1d', fname: g.name,
         fetch: function (tf) { return Gifts.chart(g.id, S.view.model || '', tf, floor); },
         isFav: function () { return S.favG.indexOf(g.id) >= 0; }, toggleFav: function () { toggle(S.favG, g.id, 'favG'); },
-        models: !S.view.model, gid: g.id, shareText: name + ' — ' + nf(floor, 2) + ' TON', overview: ov
+        models: !S.view.model, gid: g.id, shareText: name + (floor != null ? ' — ' + nf(floor, 2) + ' TON' : ''), overview: ov
       });
     });
   });
@@ -612,6 +619,7 @@ function vSettings() {
     '<div class="promos">' +
     '<button class="promo" data-act="grp" style="background:linear-gradient(135deg,var(--card),#7c4a1b55)"><span class="si" style="background:#f97316">' + ICON.users + '</span><b>' + t('to_group') + '</b><small>' + t('to_group_sub') + '</small></button>' +
     '<button class="promo" data-act="chn" style="background:linear-gradient(135deg,var(--card),#1b3f7c55)"><span class="si" style="background:#3b82f6">' + ICON.mega + '</span><b>' + t('to_channel') + '</b><small>' + t('to_channel_sub') + '</small></button></div>' +
+    '<div style="text-align:center;margin-top:10px"><button class="chip" data-act="diag">' + t('diagnostics') + '</button></div>' +
     '<div class="attr">' + t('data_credit') + ': TG Gifts (tggifts.com) · Baltic Assets (balticassets.eu) — CC BY 4.0<br>' + t('images_credit') + ': <a href="#" data-act="credit" style="color:var(--accent)">@GiftChanges</a><br>Charts: TradingView Lightweight Charts™ · Crypto: CoinGecko, Binance · ' + esc(CONFIG.BRAND) + '</div>';
 }
 
@@ -674,6 +682,16 @@ var A = {
   cpmodels: function () { go({ type: 'models', id: S.cp.gid }); },
   // gifts
   credit: function (v, el, e) { if (e && e.preventDefault) e.preventDefault(); openTg('https://t.me/GiftChanges'); },
+  diag: function () {
+    modal('<h3>' + t('diagnostics') + '</h3><div id="dg" class="loading">' + t('loading') + '</div>');
+    Gifts.diagnose().then(function (rows) {
+      var el = $('#dg'); if (!el) return;
+      el.className = '';
+      el.innerHTML = rows.map(function (r) {
+        return '<div class="kv" style="padding:9px 0;gap:10px"><span style="flex:1">' + esc(r[0]) + '</span><b style="font-size:12px;text-align:end;color:var(--' + (r[1] ? 'up' : 'down') + ')">' + (r[1] ? '✓ ' : '✗ ') + esc(r[2]) + '</b></div>';
+      }).join('') + '<div class="btns"><button class="btn ghost" data-act="mclose">' + t('done') + '</button></div>';
+    });
+  },
   gretry: function () { Gifts.reset(); S.cache.gifts = null; render(); },
   gtab: function (v) { S.g.tab = v; paintGifts(); },
   gmap: function () { S.g.map = !S.g.map; paintGifts(); },

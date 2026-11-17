@@ -63,6 +63,9 @@
   const RATE_URL = 'https://atlannn.github.io/telegram-gifts-floor-price/api/v1/latest.json';
   // الصور والأسماء الرسمية: Gift Changes (cdn.changes.tg / api.changes.tg) — مجاني بشرط ذكر @GiftChanges
   const NAME_URLS = ['https://api.changes.tg/names', 'https://cdn.changes.tg/gifts/id-to-name.json'];
+  // الأسماء الرسمية (أسماء مجلدات cdn.changes.tg/gifts/models/) — نسخة ثابتة عشان مفيش اعتماد على طلب شبكة
+  const OFFICIAL = ("Algorithm Cup|Artisan Brick|Astral Shard|B-Day Candle|Berry Box|Big Year|Bling Binky|Bonded Ring|Bow Tie|Bunny Muffin|Candy Cane|Chill Flame|Clover Pin|Cookie Heart|Crystal Ball|Cupid Charm|Desk Calendar|Diamond Ring|Durov's Cap|Durov's Glasses|Easter Egg|Electric Skull|Eternal Candle|Eternal Rose|Evil Eye|Faith Amulet|Fine Pen|Flying Broom|Fresh Socks|Gem Signet|Genie Lamp|Ginger Cookie|Hanging Star|Happy Brownie|Heart Locket|Heroic Helmet|Hex Pot|Holiday Drink|Homemade Cake|Hypno Lollipop|Ice Cream|Input Key|Instant Ramen|Intelligence Cup|Ion Gem|Ionic Dryer|Jack-in-the-Box|Jelly Bunny|Jester Hat|Jingle Bells|Jolly Chimp|Joyful Bundle|Khabib's Papakha|Kissed Frog|Liberty Figure|Light Sword|Lol Pop|Loot Bag|Love Candle|Love Potion|Low Rider|Lucky Locket|Lunar Snake|Lush Bouquet|Mad Pumpkin|Magic Potion|Mighty Arm|Mini Oscar|Mirage Lamp|Money Pot|Mood Pack|Moon Pendant|Mousse Cake|Myth Mask|Nail Bracelet|Neko Helmet|Party Sparkler|Perfume Bottle|Pet Snake|Plush Pepe|Pool Float|Precious Peach|Pretty Posy|Rare Bird|Record Player|Resistance Dog|Restless Jar|Sakura Flower|Santa Hat|Scared Cat|Sharp Tongue|Signet Ring|Skull Flower|Sky Stilettos|Sleigh Bell|Snake Box|Snoop Cigar|Snoop Dogg|Snow Globe|Snow Mittens|Spiced Wine|Spring Basket|Spy Agaric|Star Notepad|Stellar Rocket|Surge Board|Swag Bag|Swiss Watch|Tama Gadget|Timeless Book|Top Hat|Toy Bear|Trapped Heart|UFC Strike|Valentine Box|Vice Cream|Victory Medal|Vintage Cigar|Voodoo Doll|Westside Sign|Whip Cupcake|Winter Wreath|Witch Hat|Xmas Stocking").split('|');
+  const API = 'https://api.changes.tg';
   const CDN_MODELS = 'https://cdn.changes.tg/gifts/models/';
   const norm = function (s) { return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]/g, ''); };
   function nameMap(json) {
@@ -253,7 +256,10 @@
       firstJSON(NAME_URLS).then(function (x) { return nameMap(x.json); }).catch(function () { return {}; })
     ]);
     // الاسم الرسمي (زي "Plush Pepe") هو اللي بيتبني عليه مسار الصور في cdn.changes.tg
-    gifts.forEach(function (g) { g.official = res[2][norm(g.name)] || res[2][norm(g.id)] || g.name; });
+    const names = {};
+    OFFICIAL.forEach(function (n) { names[norm(n)] = n; });
+    Object.keys(res[2]).forEach(function (k) { names[k] = res[2][k]; });
+    gifts.forEach(function (g) { g.official = names[norm(g.name)] || names[norm(g.id)] || g.name; });
     return { gifts: gifts, models: res[0], rate: res[1], source: hostOf(f.url) };
   }
 
@@ -347,13 +353,70 @@
       if (ms && ms.length) urls.push(base + encodeURIComponent(ms[0].name) + '.png');
       return urls;
     },
-    models: function (gid) {
+    // أسماء النماذج من Gift Changes (بدون أسعار): API أولاً ثم ملف models.json في الـ CDN
+    modelNames: function (gid) {
+      G._mn = G._mn || {};
+      if (G._mn[gid]) return G._mn[gid];
+      const g = (G._list || []).find(function (x) { return x.id === gid; });
+      if (!g) return Promise.resolve([]);
+      const nm = g.official || g.name;
+      G._mn[gid] = firstJSON([API + '/models/' + encodeURIComponent(nm), CDN_MODELS + encodeURIComponent(nm) + '/models.json'])
+        .then(function (x) {
+          return (Array.isArray(x.json) ? x.json : []).map(function (m) {
+            return { name: m.name || m.telegramName, rarity: num(m.rarityPermille != null ? m.rarityPermille : m.rarity) };
+          }).filter(function (m) { return m.name; });
+        }).catch(function () { return []; });
+      return G._mn[gid];
+    },
+    firstModelImg: function (gid) {
+      const g = (G._list || []).find(function (x) { return x.id === gid; });
+      if (!g) return Promise.resolve(null);
+      return G.modelNames(gid).then(function (ms) { return ms.length ? G.imgs(g, ms[0].name)[0] : null; });
+    },
+    models: async function (gid) {
       if (G.mode === 'demo') return demoModels(gid);
-      const arr = ((G._live.models || {})[gid] || []).map(function (m) {
+      let arr = ((G._live.models || {})[gid] || []).map(function (m) {
         return { name: m.name, rarity: m.rarity, floor: m.floor, change: null, listings: m.listings };
       });
+      if (!arr.length) { // مفيش أسعار للموديلات من TG Gifts: نعرض الأسماء والصور والندرة بس
+        arr = (await G.modelNames(gid)).map(function (m) {
+          return { name: m.name, rarity: m.rarity, floor: null, change: null, listings: null };
+        });
+      }
       arr.sort(function (a, b) { return (a.rarity == null ? 1e9 : a.rarity) - (b.rarity == null ? 1e9 : b.rarity); });
-      return Promise.resolve(arr);
+      return arr;
+    },
+    // فحص كل مصدر على حدة، ويعرض النتيجة في الإعدادات
+    diagnose: async function () {
+      const tests = [
+        ['TG Gifts — floors', 'https://tggifts.com/data/floors-daily.json'],
+        ['TG Gifts — models', MODEL_URLS[0]],
+        ['Baltic Assets — rate', RATE_URL],
+        ['Gift Changes — names', NAME_URLS[0]],
+        ['Gift Changes — models/Plush Pepe', API + '/models/' + encodeURIComponent('Plush Pepe')],
+        ['CDN — models.json', CDN_MODELS + encodeURIComponent('Algorithm Cup') + '/models.json']
+      ];
+      const out = await Promise.all(tests.map(async function (t) {
+        try {
+          const r = await fetch(t[1]);
+          if (!r.ok) return [t[0], false, 'HTTP ' + r.status];
+          const j = await r.json();
+          return [t[0], true, Array.isArray(j) ? j.length + ' items' : Object.keys(j || {}).length + ' keys'];
+        } catch (e) { return [t[0], false, String(e && e.message ? e.message : e)]; }
+      }));
+      const imgTests = [['Image — Original.png (Plush Pepe)', CDN_MODELS + 'Plush%20Pepe/png/Original.png'],
+                        ['Image — Original.png (Algorithm Cup)', CDN_MODELS + 'Algorithm%20Cup/png/Original.png'],
+                        ['Image — Red Menace.png (Plush Pepe)', CDN_MODELS + 'Plush%20Pepe/png/Red%20Menace.png']];
+      const imgs = await Promise.all(imgTests.map(function (t) {
+        return new Promise(function (res) {
+          const im = new Image();
+          im.onload = function () { res([t[0], true, im.naturalWidth + 'px']); };
+          im.onerror = function () { res([t[0], false, 'failed to load']); };
+          im.src = t[1] + '?d=' + Date.now();
+        });
+      }));
+      const first = (G._list && G._list[0]) ? G._list[0] : null;
+      return out.concat(imgs).concat([['Active source', G.mode === 'live', G.mode + (G.source ? ' · ' + G.source : '') + (first ? ' · e.g. ' + first.id + ' → ' + (first.official || first.name) : '')]]);
     },
     chart: function (gid, model, tf, floor) {
       if (G.mode === 'demo') return demoChart(gid, model, tf, floor);
