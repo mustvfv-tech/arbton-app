@@ -13,7 +13,7 @@ var store = {
   set: function (k, v) { try { localStorage.setItem('arbton_' + k, JSON.stringify(v)); } catch (e) {} }
 };
 
-var GTFS = ['2h', '4h', '1d', '1w', '1M'];
+var GTFS = ['1d', '1w', '1M']; // المصدر يومي فقط، فمفيش 2h/4h
 var CTFS = ['5m', '15m', '1h', '4h', '1d', '1w', '1M', '1Y'];
 var langGuess = ['ar', 'ru'].indexOf(U.language_code) >= 0 ? U.language_code : 'en';
 
@@ -90,6 +90,7 @@ function pill(n) {
   n = Math.round((+n || 0) * 100) / 100;
   return '<span class="pill ' + (n > 0 ? 'up' : n < 0 ? 'down' : 'flat') + '">' + (n > 0 ? '+' : '') + n.toFixed(2) + '%</span>';
 }
+function pillN(n) { return n == null ? '' : pill(n); }
 function gv(n) { return S.cur === 'gem' ? GEM + nf(n, 2) : '$' + nf(n * Gifts.tonUsd, 2); }
 function gvBig(n) { return S.cur === 'gem' ? GEM + fmtBig(n) : '$' + fmtBig(n * Gifts.tonUsd); }
 var loadingBox = function () { return '<div class="loading">' + t('loading') + '</div>'; };
@@ -173,7 +174,7 @@ function paintPicker(q) {
 function makeChart(box, data) {
   killChart();
   box.innerHTML = '';
-  if (!data || !data.length) { box.innerHTML = '<div class="empty">—</div>'; return; }
+  if (!data || !data.length) { box.innerHTML = '<div class="empty">' + t('no_history') + '</div>'; return; }
   var dark = S.theme === 'dark';
   var chart = LightweightCharts.createChart(box, {
     width: box.clientWidth, height: box.clientHeight,
@@ -244,6 +245,7 @@ function drawCP() {
 
 /* ---------- CRYPTO ---------- */
 function setTon() {
+  if (Gifts.rateSrc) return; // سعر الصرف جاي من Baltic Assets
   var ton = S.cache.coins && S.cache.coins.find(function (c) { return c.id === 'the-open-network'; });
   if (ton) Gifts.tonUsd = ton.current_price;
 }
@@ -345,18 +347,28 @@ function vGifts(tok) {
 function paintGifts() {
   var g = S.g;
   var tabs = [['all', ICON.gifts, t('all_gifts')], ['hot', ICON.fire, t('hot')], ['fav', ICON.heartS, t('favorites')], ['gain', ICON.up, t('gainers')], ['loss', ICON.down, t('losers')]];
-  var L = S.cache.gifts;
-  var mc = L.reduce(function (a, x) { return a + x.floor * x.supply; }, 0);
-  var fdv = L.reduce(function (a, x) { return a + x.floor * x.maxSupply; }, 0);
-  var avgCh = L.reduce(function (a, x) { return a + x.change * x.floor * x.supply; }, 0) / mc;
+  var L = S.cache.gifts, sumHtml;
+  if (Gifts.hasSupply) {
+    var mc = L.reduce(function (a, x) { return a + x.floor * x.supply; }, 0);
+    var fdv = L.reduce(function (a, x) { return a + x.floor * x.maxSupply; }, 0);
+    var avgCh = L.reduce(function (a, x) { return a + x.change * x.floor * x.supply; }, 0) / mc;
+    sumHtml = '<div class="sum"><div><small>' + t('market_cap') + '</small><b>' + gvBig(mc) + '</b>' + pill(avgCh) + '</div>' +
+      '<div><small>' + t('fdv') + '</small><b>' + gvBig(fdv) + '</b>' + pill(avgCh) + '</div></div>';
+  } else {
+    // المصدر الحي مفيهوش supply، فمفيش Market Cap: بنعرض عدد الكوليكشنز ومتوسط التغير
+    var avg = L.reduce(function (a, x) { return a + x.change; }, 0) / (L.length || 1);
+    sumHtml = '<div class="sum"><div><small>' + t('collections') + '</small><b>' + L.length + '</b></div>' +
+      '<div><small>' + t('daily_change') + '</small>' + pill(avg) + '</div></div>';
+  }
+  var badge = Gifts.demo
+    ? '<div class="demo">' + t('demo_note') + (Gifts.err ? ' — ' + esc(Gifts.err) : '') + ' <button data-act="gretry" style="color:var(--accent);font-weight:700">' + t('retry') + '</button></div>'
+    : '<div class="demo" style="color:var(--up);border-color:#22c55e55">● ' + t('live') + ' · ' + esc(Gifts.source) + (Gifts.rateSrc ? ' · $ ' + esc(Gifts.rateSrc) : '') + '</div>';
   $('#view').innerHTML =
-    (Gifts.demo ? '<span class="demo">' + t('demo_note') + '</span>' : '') +
+    badge +
     '<div class="tabs">' + tabs.map(function (x) { return '<button class="' + (g.tab === x[0] ? 'on' : '') + '" data-act="gtab" data-v="' + x[0] + '">' + x[1] + x[2] + '</button>'; }).join('') + '</div>' +
     '<div class="bar"><label class="search">' + ICON.search + '<input id="q" value="' + esc(g.q) + '" placeholder="' + t('search_gifts') + '"></label>' +
     '<button class="ib ' + (g.map ? 'act' : '') + '" data-act="gmap">' + (g.map ? ICON.list : ICON.grid) + '</button></div>' +
-    '<div class="sum"><div><small>' + t('market_cap') + '</small><b>' + gvBig(mc) + '</b>' + pill(avgCh) + '</div>' +
-    '<div><small>' + t('fdv') + '</small><b>' + gvBig(fdv) + '</b>' + pill(avgCh) + '</div></div>' +
-    '<div id="glist"></div>';
+    sumHtml + '<div id="glist"></div>';
   paintGiftList();
 }
 function giftFiltered() {
@@ -411,10 +423,12 @@ function squarify(items, x, y, w, h) {
   return out;
 }
 function paintMap(L, box) {
-  var m = S.g.metric;
+  var m = Gifts.hasSupply ? S.g.metric : 'floor';
   var items = L.map(function (x) { return { g: x, value: m === 'cap' ? x.floor * x.supply : x.floor }; }).sort(function (a, b) { return b.value - a.value; });
   var H = Math.max(420, Math.round(window.innerHeight - 330));
-  box.innerHTML = '<div class="mrow"><select id="metric"><option value="cap" ' + (m === 'cap' ? 'selected' : '') + '>' + t('market_cap') + '</option><option value="floor" ' + (m === 'floor' ? 'selected' : '') + '>' + t('floor') + '</option></select></div><div class="tm" id="tm" style="height:' + H + 'px"></div>';
+  box.innerHTML = '<div class="mrow"><select id="metric">' +
+    (Gifts.hasSupply ? '<option value="cap" ' + (m === 'cap' ? 'selected' : '') + '>' + t('market_cap') + '</option>' : '') +
+    '<option value="floor" ' + (m === 'floor' ? 'selected' : '') + '>' + t('floor') + '</option></select></div><div class="tm" id="tm" style="height:' + H + 'px"></div>';
   var tm = $('#tm');
   if (!items.length) { tm.innerHTML = '<div class="empty">—</div>'; return; }
   var W = tm.clientWidth;
@@ -439,8 +453,10 @@ function vModels(tok) {
   });
 }
 function paintModels(g) {
-  var tabs = [['all', t('all')], ['gain', t('gainers')], ['loss', t('losers')], ['rare', t('rarest')]];
+  var hasCh = S.ms.some(function (m) { return m.change != null; });
+  var tabs = hasCh ? [['all', t('all')], ['gain', t('gainers')], ['loss', t('losers')], ['rare', t('rarest')]] : [['all', t('all')], ['rare', t('rarest')]];
   var L = S.ms.slice(), v = S.mtab.v;
+  if (!hasCh && (v === 'gain' || v === 'loss')) v = S.mtab.v = 'all';
   if (v === 'gain') L = L.filter(function (x) { return x.change > 0; }).sort(function (a, b) { return b.change - a.change; });
   if (v === 'loss') L = L.filter(function (x) { return x.change < 0; }).sort(function (a, b) { return a.change - b.change; });
   if (v === 'rare') L.sort(function (a, b) { return a.rarity - b.rarity; });
@@ -448,8 +464,8 @@ function paintModels(g) {
     '<div class="dhead"><button class="ib" data-act="back">' + ICON.back + '</button><div class="dn" style="flex:1;text-align:center;margin-inline-end:36px">' + esc(g.name) + '</div></div>' +
     '<div class="tabs">' + tabs.map(function (x) { return '<button class="' + (v === x[0] ? 'on' : '') + '" data-act="mtab" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
     '<div class="grid">' + L.map(function (m) {
-      return '<div class="cell" data-act="model" data-v="' + g.id + '" data-m="' + esc(m.name) + '"><img class="lg sq big" src="' + Gifts.img(g.name + m.name) + '"><b>' + esc(m.name) + '</b><span class="p">' + gv(m.floor) + '</span>' + pill(m.change) + '</div>';
-    }).join('') + '</div>';
+      return '<div class="cell" data-act="model" data-v="' + g.id + '" data-m="' + esc(m.name) + '"><img class="lg sq big" src="' + Gifts.img(g.name + m.name) + '"><b>' + esc(m.name) + '</b><span class="p">' + gv(m.floor) + '</span>' + (m.rarity != null && m.change == null ? '<span class="p">' + m.rarity + '‰</span>' : '') + pillN(m.change) + '</div>';
+    }).join('') + '</div>' + (S.ms.length ? '' : '<div class="empty">' + t('no_models') + '</div>');
 }
 function vGift(tok) {
   $('#view').innerHTML = loadingBox();
@@ -458,11 +474,17 @@ function vGift(tok) {
     var mp = S.view.model ? Gifts.models(g.id) : Promise.resolve(null);
     return mp.then(function (ms) {
       if (tok !== S.tok) return;
-      var name = g.name, floor = g.floor, chg = g.change, rar = null;
-      if (ms) { var m = ms.find(function (x) { return x.name === S.view.model; }); if (m) { name = g.name + ' · ' + m.name; floor = m.floor; chg = m.change; rar = m.rarity; } }
-      var ov = [[t('floor'), gv(floor)], [t('change24'), pill(chg)]];
-      if (rar != null) ov.push([t('rarity'), rar + '‰']);
-      else ov.push([t('minted'), nf(g.supply, 0)], [t('max_supply'), nf(g.maxSupply, 0)], [t('market_cap'), gvBig(g.floor * g.supply)]);
+      var name = g.name, floor = g.floor, chg = g.change, rar = null, lst = null, isModel = false;
+      if (ms) { var m = ms.find(function (x) { return x.name === S.view.model; }); if (m) { isModel = true; name = g.name + ' · ' + m.name; floor = m.floor; chg = m.change; rar = m.rarity; lst = m.listings; } }
+      var ov = [[t('floor'), gv(floor)]];
+      if (chg != null) ov.push([t(Gifts.hasSupply ? 'change24' : 'daily_change'), pill(chg)]);
+      if (isModel) {
+        if (rar != null) ov.push([t('rarity'), rar + '‰']);
+        if (lst != null) ov.push([t('listings'), nf(lst, 0)]);
+      } else {
+        if (g.sales != null) ov.push([t('recent_sales'), nf(g.sales, 0)]);
+        if (Gifts.hasSupply) ov.push([t('minted'), nf(g.supply, 0)], [t('max_supply'), nf(g.maxSupply, 0)], [t('market_cap'), gvBig(g.floor * g.supply)]);
+      }
       chartPage({
         img: Gifts.img(g.name), sq: true, title: name, price: gv(floor), chg: chg, tfs: GTFS, tf: '1d', fname: g.name,
         fetch: function (tf) { return Gifts.chart(g.id, S.view.model || '', tf, floor); },
@@ -523,9 +545,18 @@ function vPortfolio(tok) {
       fetch: function (tf) {
         if (!items.length) return Promise.resolve([]);
         return Promise.all(items.map(function (it) { var g = giftById(it.gid); return Gifts.chart(it.gid, '', tf, g.floor); })).then(function (all) {
-          return all[0].map(function (_, i) {
-            var o = { time: all[0][i].time, open: 0, high: 0, low: 0, close: 0 };
-            all.forEach(function (arr, k) { var q = items[k].qty; o.open += arr[i].open * q; o.high += arr[i].high * q; o.low += arr[i].low * q; o.close += arr[i].close * q; });
+          // دمج السلاسل على محور زمني موحّد (آخر قيمة معروفة تتكرر لو ناقصة)
+          var times = {};
+          all.forEach(function (arr) { arr.forEach(function (c) { times[c.time] = 1; }); });
+          var ts = Object.keys(times).map(Number).sort(function (a, b) { return a - b; });
+          var idx = all.map(function () { return 0; }), last = all.map(function () { return null; });
+          return ts.map(function (tm) {
+            var o = { time: tm, open: 0, high: 0, low: 0, close: 0 };
+            all.forEach(function (arr, k) {
+              while (idx[k] < arr.length && arr[idx[k]].time <= tm) { last[k] = arr[idx[k]]; idx[k]++; }
+              var c = last[k] || arr[0]; if (!c) return;
+              var q = items[k].qty; o.open += c.open * q; o.high += c.high * q; o.low += c.low * q; o.close += c.close * q;
+            });
             return o;
           });
         });
@@ -566,7 +597,7 @@ function vSettings() {
     '<div class="promos">' +
     '<button class="promo" data-act="grp" style="background:linear-gradient(135deg,var(--card),#7c4a1b55)"><span class="si" style="background:#f97316">' + ICON.users + '</span><b>' + t('to_group') + '</b><small>' + t('to_group_sub') + '</small></button>' +
     '<button class="promo" data-act="chn" style="background:linear-gradient(135deg,var(--card),#1b3f7c55)"><span class="si" style="background:#3b82f6">' + ICON.mega + '</span><b>' + t('to_channel') + '</b><small>' + t('to_channel_sub') + '</small></button></div>' +
-    '<div class="attr">Charts: TradingView Lightweight Charts™ · ' + esc(CONFIG.BRAND) + '</div>';
+    '<div class="attr">' + t('data_credit') + ': TG Gifts (tggifts.com) · Baltic Assets (balticassets.eu) — CC BY 4.0<br>Charts: TradingView Lightweight Charts™ · Crypto: CoinGecko, Binance · ' + esc(CONFIG.BRAND) + '</div>';
 }
 
 /* ---------- actions ---------- */
@@ -627,6 +658,7 @@ var A = {
   },
   cpmodels: function () { go({ type: 'models', id: S.cp.gid }); },
   // gifts
+  gretry: function () { Gifts.reset(); S.cache.gifts = null; render(); },
   gtab: function (v) { S.g.tab = v; paintGifts(); },
   gmap: function () { S.g.map = !S.g.map; paintGifts(); },
   gift: function (v) { go({ type: 'gift', id: v }); },

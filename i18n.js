@@ -17,7 +17,9 @@ en: {
   new_collection:'New collection', empty_assets:'No gifts yet. Tap “add” to add your first gift.',
   move_to:'Move to collection', no_collection:'No collection', sort_by:'Sort by', asc:'Ascending', desc:'Descending',
   metric:'Size by', minted:'Minted', max_supply:'Max supply', rarity:'Rarity', model:'Model',
-  portfolio_chart:'Portfolio value', delete_collection:'Delete collection', preset:'Hot', total:'Total'
+  portfolio_chart:'Portfolio value', delete_collection:'Delete collection', preset:'Hot', total:'Total',
+  collections:'Collections', daily_change:'Daily change', live:'LIVE', no_history:'No price history for this item yet.',
+  no_models:'No model data for this collection.', listings:'Listings', recent_sales:'Recent sales', data_credit:'Data'
 },
 ru: {
   crypto:'Крипто', gifts:'Подарки', profile:'Профиль', settings:'Настройки',
@@ -37,7 +39,9 @@ ru: {
   new_collection:'Новая коллекция', empty_assets:'Подарков пока нет. Нажмите «добавить».',
   move_to:'Переместить в коллекцию', no_collection:'Без коллекции', sort_by:'Сортировка', asc:'По возрастанию', desc:'По убыванию',
   metric:'Размер по', minted:'Выпущено', max_supply:'Макс. выпуск', rarity:'Редкость', model:'Модель',
-  portfolio_chart:'Стоимость портфеля', delete_collection:'Удалить коллекцию', preset:'Горячие', total:'Итого'
+  portfolio_chart:'Стоимость портфеля', delete_collection:'Удалить коллекцию', preset:'Горячие', total:'Итого',
+  collections:'Коллекции', daily_change:'Изменение за день', live:'LIVE', no_history:'Истории цен пока нет.',
+  no_models:'Нет данных по моделям.', listings:'Лоты', recent_sales:'Недавние продажи', data_credit:'Данные'
 },
 ar: {
   crypto:'العملات', gifts:'الهدايا', profile:'الملف', settings:'الإعدادات',
@@ -57,6 +61,8 @@ ar: {
   new_collection:'مجموعة جديدة', empty_assets:'لا توجد هدايا بعد. اضغط «إضافة» لإضافة أول هدية.',
   move_to:'نقل إلى مجموعة', no_collection:'بدون مجموعة', sort_by:'ترتيب حسب', asc:'تصاعدي', desc:'تنازلي',
   metric:'الحجم حسب', minted:'المُصدَر', max_supply:'الحد الأقصى', rarity:'الندرة', model:'النموذج',
-  portfolio_chart:'قيمة المحفظة', delete_collection:'حذف المجموعة', preset:'الأكثر حركة', total:'الإجمالي'
+  portfolio_chart:'قيمة المحفظة', delete_collection:'حذف المجموعة', preset:'الأكثر حركة', total:'الإجمالي',
+  collections:'المجموعات', daily_change:'التغيّر اليومي', live:'مباشر', no_history:'لا يوجد تاريخ أسعار لهذا العنصر بعد.',
+  no_models:'لا توجد بيانات نماذج لهذه المجموعة.', listings:'العروض', recent_sales:'مبيعات حديثة', data_credit:'البيانات'
 }
 };
