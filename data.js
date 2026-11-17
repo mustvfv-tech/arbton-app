@@ -61,6 +61,16 @@
   ];
   const MODEL_URLS = ['https://tggifts.com/data/models-daily.json'];
   const RATE_URL = 'https://atlannn.github.io/telegram-gifts-floor-price/api/v1/latest.json';
+  // الصور والأسماء الرسمية: Gift Changes (cdn.changes.tg / api.changes.tg) — مجاني بشرط ذكر @GiftChanges
+  const NAME_URLS = ['https://api.changes.tg/names', 'https://cdn.changes.tg/gifts/id-to-name.json'];
+  const CDN_MODELS = 'https://cdn.changes.tg/gifts/models/';
+  const norm = function (s) { return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]/g, ''); };
+  function nameMap(json) {
+    const out = {};
+    const vals = Array.isArray(json) ? json : (isObj(json) ? Object.keys(json).map(function (k) { return json[k]; }) : []);
+    vals.forEach(function (v) { if (typeof v === 'string' && v) out[norm(v)] = v; });
+    return out;
+  }
 
   const num = function (v) { const n = typeof v === 'string' ? parseFloat(v) : v; return typeof n === 'number' && isFinite(n) ? n : null; };
   const isObj = function (v) { return v && typeof v === 'object' && !Array.isArray(v); };
@@ -239,8 +249,11 @@
     if (!gifts.length) throw new Error('Unexpected data format (' + hostOf(f.url) + ')');
     const res = await Promise.all([
       firstJSON(MODEL_URLS).then(function (x) { return extractModels(x.json); }).catch(function () { return {}; }),
-      fetch(RATE_URL).then(function (x) { return x.json(); }).then(findRate).catch(function () { return null; })
+      fetch(RATE_URL).then(function (x) { return x.json(); }).then(findRate).catch(function () { return null; }),
+      firstJSON(NAME_URLS).then(function (x) { return nameMap(x.json); }).catch(function () { return {}; })
     ]);
+    // الاسم الرسمي (زي "Plush Pepe") هو اللي بيتبني عليه مسار الصور في cdn.changes.tg
+    gifts.forEach(function (g) { g.official = res[2][norm(g.name)] || res[2][norm(g.id)] || g.name; });
     return { gifts: gifts, models: res[0], rate: res[1], source: hostOf(f.url) };
   }
 
@@ -325,6 +338,15 @@
       return G._list;
     },
     reset: function () { G._list = null; },
+    // روابط الصور المحتملة بالترتيب (لو الأولى فشلت يجرب اللي بعدها، وبعدين المربع الملوّن)
+    imgs: function (g, model) {
+      const base = CDN_MODELS + encodeURIComponent(g.official || g.name) + '/png/';
+      if (model) return [base + encodeURIComponent(model) + '.png'];
+      const urls = [base + 'Original.png'];
+      const ms = G._live && G._live.models ? G._live.models[g.id] : null;
+      if (ms && ms.length) urls.push(base + encodeURIComponent(ms[0].name) + '.png');
+      return urls;
+    },
     models: function (gid) {
       if (G.mode === 'demo') return demoModels(gid);
       const arr = ((G._live.models || {})[gid] || []).map(function (m) {
@@ -339,7 +361,7 @@
       const g = (G._list || []).find(function (x) { return x.id === gid; });
       return Promise.resolve(g ? toCandles(g.points, tf) : []);
     },
-    _t: { extractCollections: extractCollections, extractModels: extractModels, buildGifts: buildGifts, toCandles: toCandles, findRate: findRate }
+    _t: { nameMap: nameMap, norm: norm, extractCollections: extractCollections, extractModels: extractModels, buildGifts: buildGifts, toCandles: toCandles, findRate: findRate }
   };
   window.Gifts = G;
   window.Crypto = Crypto;

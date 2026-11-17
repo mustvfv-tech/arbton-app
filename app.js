@@ -70,6 +70,21 @@ var ICON = {
 };
 var GEM = '<svg class="gem" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l8 7-8 13L4 9z"/></svg>';
 
+/* ---------- gift images (CDN of changes.tg مع رجوع للمربع الملوّن) ---------- */
+function gImg(g, model, cls) {
+  var ph = Gifts.img(g.name + (model || ''));
+  var urls = Gifts.mode === 'live' ? Gifts.imgs(g, model) : [];
+  return '<img class="' + cls + '" src="' + esc(urls.length ? urls[0] : ph) + '" data-alts="' + esc(urls.slice(1).join('|')) +
+    '" data-fb="' + esc(ph) + '" loading="lazy" decoding="async" alt="">';
+}
+document.addEventListener('error', function (e) {
+  var im = e.target;
+  if (!im || im.tagName !== 'IMG' || !im.dataset) return;
+  var alts = (im.dataset.alts || '').split('|').filter(Boolean);
+  if (alts.length) { im.dataset.alts = alts.slice(1).join('|'); im.src = alts[0]; }
+  else if (im.dataset.fb && im.src !== im.dataset.fb) { im.src = im.dataset.fb; }
+}, true);
+
 /* ---------- formatting ---------- */
 function nf(n, d) { d = d == null ? 2 : d; return Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }); }
 function fmtPrice(n) {
@@ -166,7 +181,7 @@ function picker(opts) { // {title, items:[{id,name,sub,img}], isSel, multi, onPi
 function paintPicker(q) {
   q = q.toLowerCase();
   $('#pl').innerHTML = PICK.items.filter(function (x) { return !q || (x.name + ' ' + (x.sub || '')).toLowerCase().indexOf(q) >= 0; }).map(function (x) {
-    return '<button class="pk" data-act="pkpick" data-v="' + esc(x.id) + '"><img class="lg ' + (x.sq ? 'sq' : '') + '" src="' + esc(x.img) + '"><span class="nm">' + esc(x.name) + (x.sub ? ' <small style="color:var(--muted)">' + esc(x.sub) + '</small>' : '') + '</span><span class="ck">' + (PICK.multi && PICK.isSel(x.id) ? '✓' : '') + '</span></button>';
+    return '<button class="pk" data-act="pkpick" data-v="' + esc(x.id) + '">' + (x.html || '<img class="lg ' + (x.sq ? 'sq' : '') + '" src="' + esc(x.img) + '">') + '<span class="nm">' + esc(x.name) + (x.sub ? ' <small style="color:var(--muted)">' + esc(x.sub) + '</small>' : '') + '</span><span class="ck">' + (PICK.multi && PICK.isSel(x.id) ? '✓' : '') + '</span></button>';
   }).join('');
 }
 
@@ -208,7 +223,7 @@ function chartPage(cfg) {
   var fav = cfg.isFav ? cfg.isFav() : false;
   $('#view').innerHTML =
     '<div class="dhead"><button class="ib" data-act="back">' + ICON.back + '</button>' +
-    '<img class="lg ' + (cfg.sq ? 'sq' : '') + '" src="' + esc(cfg.img) + '">' +
+    (cfg.imgHtml || '<img class="lg ' + (cfg.sq ? 'sq' : '') + '" src="' + esc(cfg.img) + '">') +
     '<div class="dt"><div class="dn">' + esc(cfg.title) + '</div><div class="dp">' + cfg.price + '</div></div>' + pill(cfg.chg) +
     '<div class="grow"></div>' +
     (cfg.models ? '<button class="chip" data-act="cpmodels">' + t('models') + '</button>' : '') +
@@ -387,7 +402,7 @@ function paintGiftList() {
   if (g.tab === 'fav' && !L.length && !g.q) { box.innerHTML = '<div class="empty"><p>' + t('no_favs') + '</p><button class="btn" data-act="addgifts">+ ' + t('add_gifts') + '</button></div>'; return; }
   if (g.map) return paintMap(L, box);
   box.innerHTML = L.map(function (x) {
-    return '<div class="row"><button class="lgb" data-act="models" data-v="' + x.id + '"><img class="lg sq" src="' + Gifts.img(x.name) + '"></button>' +
+    return '<div class="row"><button class="lgb" data-act="models" data-v="' + x.id + '">' + gImg(x, null, 'lg sq') + '</button>' +
       '<div class="nm" data-act="gift" data-v="' + x.id + '">' + esc(x.name) + '</div>' +
       '<button class="pr" data-act="gift" data-v="' + x.id + '">' + gv(x.floor) + '</button>' + pill(x.change) + '</div>';
   }).join('') + (g.tab === 'fav' ? '<div class="empty" style="padding:16px"><button class="btn" data-act="addgifts">+ ' + t('add_gifts') + '</button></div>' : '');
@@ -464,7 +479,7 @@ function paintModels(g) {
     '<div class="dhead"><button class="ib" data-act="back">' + ICON.back + '</button><div class="dn" style="flex:1;text-align:center;margin-inline-end:36px">' + esc(g.name) + '</div></div>' +
     '<div class="tabs">' + tabs.map(function (x) { return '<button class="' + (v === x[0] ? 'on' : '') + '" data-act="mtab" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
     '<div class="grid">' + L.map(function (m) {
-      return '<div class="cell" data-act="model" data-v="' + g.id + '" data-m="' + esc(m.name) + '"><img class="lg sq big" src="' + Gifts.img(g.name + m.name) + '"><b>' + esc(m.name) + '</b><span class="p">' + gv(m.floor) + '</span>' + (m.rarity != null && m.change == null ? '<span class="p">' + m.rarity + '‰</span>' : '') + pillN(m.change) + '</div>';
+      return '<div class="cell" data-act="model" data-v="' + g.id + '" data-m="' + esc(m.name) + '">' + gImg(g, m.name, 'lg sq big') + '<b>' + esc(m.name) + '</b><span class="p">' + gv(m.floor) + '</span>' + (m.rarity != null && m.change == null ? '<span class="p">' + m.rarity + '‰</span>' : '') + pillN(m.change) + '</div>';
     }).join('') + '</div>' + (S.ms.length ? '' : '<div class="empty">' + t('no_models') + '</div>');
 }
 function vGift(tok) {
@@ -486,7 +501,7 @@ function vGift(tok) {
         if (Gifts.hasSupply) ov.push([t('minted'), nf(g.supply, 0)], [t('max_supply'), nf(g.maxSupply, 0)], [t('market_cap'), gvBig(g.floor * g.supply)]);
       }
       chartPage({
-        img: Gifts.img(g.name), sq: true, title: name, price: gv(floor), chg: chg, tfs: GTFS, tf: '1d', fname: g.name,
+        imgHtml: gImg(g, isModel ? S.view.model : null, 'lg sq'), title: name, price: gv(floor), chg: chg, tfs: GTFS, tf: '1d', fname: g.name,
         fetch: function (tf) { return Gifts.chart(g.id, S.view.model || '', tf, floor); },
         isFav: function () { return S.favG.indexOf(g.id) >= 0; }, toggleFav: function () { toggle(S.favG, g.id, 'favG'); },
         models: !S.view.model, gid: g.id, shareText: name + ' — ' + nf(floor, 2) + ' TON', overview: ov
@@ -515,7 +530,7 @@ function paintProfile() {
   var body;
   if (p.tab === 'all') {
     body = '<div class="grid">' + S.cache.gifts.map(function (g) {
-      return '<div class="cell" data-act="pgiftadd" data-v="' + g.id + '"><span class="addb">+</span><img class="lg sq big" src="' + Gifts.img(g.name) + '"><b>' + esc(g.name) + '</b><span class="p">' + gv(g.floor) + '</span></div>';
+      return '<div class="cell" data-act="pgiftadd" data-v="' + g.id + '"><span class="addb">+</span>' + gImg(g, null, 'lg sq big') + '<b>' + esc(g.name) + '</b><span class="p">' + gv(g.floor) + '</span></div>';
     }).join('') + '</div>';
   } else {
     var items = p.tab === 'assets' ? P.items : P.items.filter(function (i) { return i.col === p.tab; });
@@ -523,7 +538,7 @@ function paintProfile() {
       var g = giftById(it.gid); if (!g) return '';
       return '<div class="cell" data-act="' + (p.edit ? 'noop' : 'pitem') + '" data-v="' + it.uid + '">' +
         (p.edit ? '<button class="x" data-act="pdel" data-v="' + it.uid + '">×</button>' : (it.num ? '<span class="num">#' + esc(it.num) + '</span>' : '')) +
-        '<img class="lg sq big" src="' + Gifts.img(g.name) + '"><b>' + esc(g.name) + (it.qty > 1 ? ' ×' + it.qty : '') + '</b><span class="p">' + gv(g.floor * it.qty) + '</span></div>';
+        gImg(g, null, 'lg sq big') + '<b>' + esc(g.name) + (it.qty > 1 ? ' ×' + it.qty : '') + '</b><span class="p">' + gv(g.floor * it.qty) + '</span></div>';
     }).join('') + '</div>' : '<div class="empty">' + t('empty_assets') + '</div>';
   }
   $('#view').innerHTML =
@@ -597,7 +612,7 @@ function vSettings() {
     '<div class="promos">' +
     '<button class="promo" data-act="grp" style="background:linear-gradient(135deg,var(--card),#7c4a1b55)"><span class="si" style="background:#f97316">' + ICON.users + '</span><b>' + t('to_group') + '</b><small>' + t('to_group_sub') + '</small></button>' +
     '<button class="promo" data-act="chn" style="background:linear-gradient(135deg,var(--card),#1b3f7c55)"><span class="si" style="background:#3b82f6">' + ICON.mega + '</span><b>' + t('to_channel') + '</b><small>' + t('to_channel_sub') + '</small></button></div>' +
-    '<div class="attr">' + t('data_credit') + ': TG Gifts (tggifts.com) · Baltic Assets (balticassets.eu) — CC BY 4.0<br>Charts: TradingView Lightweight Charts™ · Crypto: CoinGecko, Binance · ' + esc(CONFIG.BRAND) + '</div>';
+    '<div class="attr">' + t('data_credit') + ': TG Gifts (tggifts.com) · Baltic Assets (balticassets.eu) — CC BY 4.0<br>' + t('images_credit') + ': <a href="#" data-act="credit" style="color:var(--accent)">@GiftChanges</a><br>Charts: TradingView Lightweight Charts™ · Crypto: CoinGecko, Binance · ' + esc(CONFIG.BRAND) + '</div>';
 }
 
 /* ---------- actions ---------- */
@@ -658,6 +673,7 @@ var A = {
   },
   cpmodels: function () { go({ type: 'models', id: S.cp.gid }); },
   // gifts
+  credit: function (v, el, e) { if (e && e.preventDefault) e.preventDefault(); openTg('https://t.me/GiftChanges'); },
   gretry: function () { Gifts.reset(); S.cache.gifts = null; render(); },
   gtab: function (v) { S.g.tab = v; paintGifts(); },
   gmap: function () { S.g.map = !S.g.map; paintGifts(); },
@@ -667,13 +683,13 @@ var A = {
   mtab: function (v) { S.mtab.v = v; var g = giftById(S.mtab.gid); paintModels(g); },
   addgifts: function () {
     picker({ title: t('add_gifts'), multi: true, isSel: function (id) { return S.favG.indexOf(id) >= 0; },
-      items: S.cache.gifts.map(function (g) { return { id: g.id, name: g.name, img: Gifts.img(g.name), sq: true }; }),
+      items: S.cache.gifts.map(function (g) { return { id: g.id, name: g.name, html: gImg(g, null, 'lg sq') }; }),
       onPick: function (id) { toggle(S.favG, id, 'favG'); paintGiftList(); } });
   },
   // profile
   ptab: function (v) { S.p.tab = v; paintProfile(); },
   padd: function () {
-    picker({ title: t('select_gift'), multi: false, items: S.cache.gifts.map(function (g) { return { id: g.id, name: g.name, img: Gifts.img(g.name), sq: true }; }),
+    picker({ title: t('select_gift'), multi: false, items: S.cache.gifts.map(function (g) { return { id: g.id, name: g.name, html: gImg(g, null, 'lg sq') }; }),
       onPick: function (id) { itemForm(id, S.p.tab !== 'assets' && S.p.tab !== 'all' ? S.p.tab : ''); } });
   },
   pgiftadd: function (v) { itemForm(v, ''); },
