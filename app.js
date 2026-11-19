@@ -388,7 +388,7 @@ function paintGifts() {
   }
   var badge = Gifts.demo
     ? '<div class="demo">' + t('demo_note') + (Gifts.err ? ' — ' + esc(Gifts.err) : '') + ' <button data-act="gretry" style="color:var(--accent);font-weight:700">' + t('retry') + '</button></div>'
-    : '<div class="demo" style="color:var(--up);border-color:#22c55e55">● ' + t('live') + ' · ' + esc(Gifts.source) + (Gifts.rateSrc ? ' · $ ' + esc(Gifts.rateSrc) : '') + '</div>';
+    : '<div class="demo" style="color:var(--up);border-color:#22c55e55">● ' + t('live') + ' · ' + esc(Gifts.source) + (Gifts.mk ? ' · Gift Satellite (' + Gifts.mk.hit + ')' : '') + (Gifts.rateSrc ? ' · $ ' + esc(Gifts.rateSrc) : '') + '</div>';
   $('#view').innerHTML =
     badge +
     '<div class="tabs">' + tabs.map(function (x) { return '<button class="' + (g.tab === x[0] ? 'on' : '') + '" data-act="gtab" data-v="' + x[0] + '">' + x[1] + x[2] + '</button>'; }).join('') + '</div>' +
@@ -540,7 +540,15 @@ function vGift(tok) {
       if (tok !== S.tok) return;
       var name = g.name, floor = g.floor, chg = g.change, rar = null, lst = null, isModel = false;
       if (ms) { var m = ms.find(function (x) { return x.name === S.view.model; }); if (m) { isModel = true; name = g.name + ' · ' + m.name; floor = m.floor; chg = m.change; rar = m.rarity; lst = m.listings; } }
-      var ov = floor != null ? [[t('floor') + (Gifts.mode === 'live' ? ' (' + t('market_src') + ')' : ''), gv(floor)]] : [];
+      var hasMk = !isModel && g.markets && Gifts.mode === 'live';
+      var ov = floor != null ? [[hasMk ? t('best_floor') + ' (' + (Gifts.marketLabel[g.best] || g.best) + ')' : t('floor') + (Gifts.mode === 'live' ? ' (' + t('market_src') + ')' : ''), gv(floor)]] : [];
+      if (hasMk) {
+        Object.keys(g.markets).sort(function (a, b) { return g.markets[a].p - g.markets[b].p; }).forEach(function (k) {
+          var m = g.markets[k];
+          ov.push([(Gifts.marketLabel[k] || k) + (k === g.best ? ' ★' : ''), gv(m.p) + ' <small style="opacity:.6">· ' + (m.n >= 50 ? '50+' : m.n) + '</small>']);
+        });
+        if (g.fragFloor != null) ov.push([t('fragment'), gv(g.fragFloor)]);
+      }
       if (chg != null) ov.push([t(Gifts.hasSupply ? 'change24' : 'daily_change'), pill(chg)]);
       if (isModel) {
         if (rar != null) ov.push([t('rarity'), rar + '‰']);
@@ -554,7 +562,7 @@ function vGift(tok) {
         fetch: function (tf) { return Gifts.chart(g.id, S.view.model || '', tf, floor); },
         isFav: function () { return S.favG.indexOf(g.id) >= 0; }, toggleFav: function () { toggle(S.favG, g.id, 'favG'); },
         forceStyle: Gifts.mode === 'live' ? 'area' : null, // المصدر لقطات يومية: خط حقيقي أصدق من شموع مصطنعة
-        note: Gifts.mode === 'live' && !isModel ? t('daily_note') : '',
+        note: Gifts.mode === 'live' && !isModel ? (hasMk ? t('gs_note') : t('daily_note')) : '',
         models: !S.view.model, gid: g.id, shareText: name + (floor != null ? ' — ' + nf(floor, 2) + ' TON' : ''), overview: ov
       });
     });
@@ -664,7 +672,7 @@ function vSettings() {
     '<button class="promo" data-act="grp" style="background:linear-gradient(135deg,var(--card),#7c4a1b55)"><span class="si" style="background:#f97316">' + ICON.users + '</span><b>' + t('to_group') + '</b><small>' + t('to_group_sub') + '</small></button>' +
     '<button class="promo" data-act="chn" style="background:linear-gradient(135deg,var(--card),#1b3f7c55)"><span class="si" style="background:#3b82f6">' + ICON.mega + '</span><b>' + t('to_channel') + '</b><small>' + t('to_channel_sub') + '</small></button></div>' +
     '<div style="text-align:center;margin-top:10px"><button class="chip" data-act="diag">' + t('diagnostics') + '</button></div>' +
-    '<div class="attr">' + t('data_credit') + ': TG Gifts (tggifts.com) · Baltic Assets (balticassets.eu) — CC BY 4.0<br>' + t('images_credit') + ': <a href="#" data-act="credit" style="color:var(--accent)">@GiftChanges</a><br>Charts: TradingView Lightweight Charts™ · Crypto: CoinGecko, Binance · ' + esc(CONFIG.BRAND) + ' v' + esc(CONFIG.VERSION) + '</div>';
+    '<div class="attr">' + t('data_credit') + ': TG Gifts (tggifts.com) · Baltic Assets (balticassets.eu) — CC BY 4.0<br>' + t('prices_src') + ': Gift Satellite (@gift_satellite_app)<br>' + t('images_credit') + ': <a href="#" data-act="credit" style="color:var(--accent)">@GiftChanges</a><br>Charts: TradingView Lightweight Charts™ · Crypto: CoinGecko, Binance · ' + esc(CONFIG.BRAND) + ' v' + esc(CONFIG.VERSION) + '</div>';
 }
 
 /* ---------- actions ---------- */

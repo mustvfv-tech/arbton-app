@@ -1,0 +1,31 @@
+name: Update floors
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: floors
+  cancel-in-progress: false
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/gs-floors.mjs
+        env:
+          GS_TOKEN: ${{ secrets.GS_TOKEN }}
+          GS_BASE: ${{ vars.GS_BASE }}
+      - name: Commit data
+        run: |
+          git config user.name "arbton-bot"
+          git config user.email "arbton-bot@users.noreply.github.com"
+          git add data/floors.json data/floors-history.json
+          git diff --cached --quiet || git commit -m "data: update floors"
+          git pull --rebase -q || true
+          git push

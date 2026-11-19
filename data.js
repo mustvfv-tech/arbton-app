@@ -62,6 +62,9 @@
   const MODEL_URLS = ['https://tggifts.com/data/models-daily.json'];
   const RATE_URL = 'https://atlannn.github.io/telegram-gifts-floor-price/api/v1/latest.json';
   // الصور والأسماء الرسمية: Gift Changes (cdn.changes.tg / api.changes.tg) — مجاني بشرط ذكر @GiftChanges
+  // أسعار الأسواق (Gift Satellite) بتتحدّث كل ~30 دقيقة بواسطة GitHub Actions وتتخزن في الريبو نفسه
+  const FLOORS_URL = 'data/floors.json', HIST_URL = 'data/floors-history.json';
+  const MARKET_LABEL = { portals: 'Portals', tonnel: 'Tonnel', mrkt: 'MRKT', getgems: 'GetGems', tg: 'Telegram' };
   const NAME_URLS = ['https://api.changes.tg/names', 'https://cdn.changes.tg/gifts/id-to-name.json'];
   // الأسماء الرسمية (أسماء مجلدات cdn.changes.tg/gifts/models/) — نسخة ثابتة عشان مفيش اعتماد على طلب شبكة
   const OFFICIAL = ("Algorithm Cup|Artisan Brick|Astral Shard|B-Day Candle|Berry Box|Big Year|Bling Binky|Bonded Ring|Bow Tie|Bunny Muffin|Candy Cane|Chill Flame|Clover Pin|Cookie Heart|Crystal Ball|Cupid Charm|Desk Calendar|Diamond Ring|Durov's Cap|Durov's Glasses|Easter Egg|Electric Skull|Eternal Candle|Eternal Rose|Evil Eye|Faith Amulet|Fine Pen|Flying Broom|Fresh Socks|Gem Signet|Genie Lamp|Ginger Cookie|Hanging Star|Happy Brownie|Heart Locket|Heroic Helmet|Hex Pot|Holiday Drink|Homemade Cake|Hypno Lollipop|Ice Cream|Input Key|Instant Ramen|Intelligence Cup|Ion Gem|Ionic Dryer|Jack-in-the-Box|Jelly Bunny|Jester Hat|Jingle Bells|Jolly Chimp|Joyful Bundle|Khabib's Papakha|Kissed Frog|Liberty Figure|Light Sword|Lol Pop|Loot Bag|Love Candle|Love Potion|Low Rider|Lucky Locket|Lunar Snake|Lush Bouquet|Mad Pumpkin|Magic Potion|Mighty Arm|Mini Oscar|Mirage Lamp|Money Pot|Mood Pack|Moon Pendant|Mousse Cake|Myth Mask|Nail Bracelet|Neko Helmet|Party Sparkler|Perfume Bottle|Pet Snake|Plush Pepe|Pool Float|Precious Peach|Pretty Posy|Rare Bird|Record Player|Resistance Dog|Restless Jar|Sakura Flower|Santa Hat|Scared Cat|Sharp Tongue|Signet Ring|Skull Flower|Sky Stilettos|Sleigh Bell|Snake Box|Snoop Cigar|Snoop Dogg|Snow Globe|Snow Mittens|Spiced Wine|Spring Basket|Spy Agaric|Star Notepad|Stellar Rocket|Surge Board|Swag Bag|Swiss Watch|Tama Gadget|Timeless Book|Top Hat|Toy Bear|Trapped Heart|UFC Strike|Valentine Box|Vice Cream|Victory Medal|Vintage Cigar|Voodoo Doll|Westside Sign|Whip Cupcake|Winter Wreath|Witch Hat|Xmas Stocking").split('|');
@@ -246,6 +249,30 @@
     }
     throw new Error(errs.join(' · ') || 'no source');
   }
+  // دمج أسعار الأسواق: السعر المعروض = أقل فلور بين الأسواق، وكل سوق بسعره
+  function applyMarkets(gifts, fl, hist) {
+    if (!isObj(fl) || !isObj(fl.collections)) return null;
+    const idx = {};
+    Object.keys(fl.collections).forEach(function (k) { idx[norm(k)] = fl.collections[k]; });
+    let hit = 0;
+    const now = Math.floor(Date.now() / 1000);
+    gifts.forEach(function (g) {
+      const e = idx[norm(g.official)] || idx[norm(g.name)] || idx[norm(g.id)];
+      if (!e || !(e.floor > 0)) return;
+      hit++;
+      g.fragFloor = g.floor;           // فلور Fragment من TG Gifts (للمقارنة)
+      g.floor = e.floor; g.best = e.market; g.markets = e.markets;
+      // تغيّر 24 ساعة من لقطاتنا نحن (نفس مصدر السعر) لو التاريخ كفاية، وإلا نسيب تغيّر TG Gifts اليومي
+      const nm = Object.keys(fl.collections).find(function (k) { return norm(k) === norm(g.official) || norm(k) === norm(g.name); });
+      const arr = hist && hist.c && nm ? hist.c[nm] : null;
+      if (arr && hist.t) {
+        let old = null;
+        for (let i = hist.t.length - 1; i >= 0; i--) { if (hist.t[i] <= now - 23 * 3600 && arr[i] > 0) { old = arr[i]; break; } }
+        if (old) { g.change = Math.round((g.floor - old) / old * 10000) / 100; g.chg24 = true; }
+      }
+    });
+    return { updated: fl.updated, hit: hit, total: Object.keys(fl.collections).length };
+  }
   async function loadLive() {
     const f = await firstJSON(FLOOR_URLS);
     const gifts = buildGifts(extractCollections(f.json));
@@ -253,7 +280,9 @@
     const res = await Promise.all([
       firstJSON(MODEL_URLS).then(function (x) { return extractModels(x.json); }).catch(function () { return {}; }),
       fetch(RATE_URL).then(function (x) { return x.json(); }).then(findRate).catch(function () { return null; }),
-      firstJSON(NAME_URLS).then(function (x) { return nameMap(x.json); }).catch(function () { return {}; })
+      firstJSON(NAME_URLS).then(function (x) { return nameMap(x.json); }).catch(function () { return {}; }),
+      fetch(FLOORS_URL + '?t=' + Math.floor(Date.now() / 300000)).then(function (x) { if (!x.ok) throw 0; return x.json(); }).catch(function () { return null; }),
+      fetch(HIST_URL + '?t=' + Math.floor(Date.now() / 300000)).then(function (x) { if (!x.ok) throw 0; return x.json(); }).catch(function () { return null; })
     ]);
     // الاسم الرسمي (زي "Plush Pepe") هو اللي بيتبني عليه مسار الصور في cdn.changes.tg
     const names = {};
@@ -264,7 +293,8 @@
       g.official = hit || g.name;
       if (hit) g.name = hit; // يعرض الاسم الرسمي (Plush Pepe) بدل الجمع (Plush Pepes)
     });
-    return { gifts: gifts, models: res[0], rate: res[1], source: hostOf(f.url) };
+    const mk = applyMarkets(gifts, res[3], res[4]);
+    return { gifts: gifts, models: res[0], rate: res[1], source: hostOf(f.url), mk: mk };
   }
 
   // ---------- Demo (احتياطي فقط) ----------
@@ -332,13 +362,14 @@
 
   const G = {
     mode: 'demo', demo: true, err: null, source: '', hasSupply: true,
-    tonUsd: 3, rateSrc: '', img: placeholder, _list: null, _live: null,
+    tonUsd: 3, rateSrc: '', img: placeholder, _list: null, _live: null, mk: null, marketLabel: MARKET_LABEL,
     list: async function () {
       if (G._list) return G._list;
       try {
         const L = await loadLive();
         G._live = L; G.mode = 'live'; G.demo = false; G.err = null; G.source = L.source; G.hasSupply = false;
         if (L.rate) { G.tonUsd = L.rate; G.rateSrc = 'Baltic Assets'; }
+        G.mk = L.mk;
         G._list = L.gifts;
       } catch (e) {
         G.mode = 'demo'; G.demo = true; G.hasSupply = true; G.source = '';
@@ -395,6 +426,7 @@
       const tests = [
         ['TG Gifts — floors', 'https://tggifts.com/data/floors-daily.json'],
         ['TG Gifts — models', MODEL_URLS[0]],
+        ['Gift Satellite — floors.json (repo)', FLOORS_URL + '?d=' + Date.now()],
         ['Baltic Assets — rate', RATE_URL],
         ['Gift Changes — names', NAME_URLS[0]],
         ['Gift Changes — models/Plush Pepe', API + '/models/' + encodeURIComponent('Plush Pepe')],
