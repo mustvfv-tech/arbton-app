@@ -26,7 +26,7 @@ var S = {
   alerts: store.get('alerts', { portfolio: false, pumps: false }),
   favC: store.get('favC', []), favG: store.get('favG', []),
   prof: store.get('prof', { items: [], cols: [] }),
-  c: { tab: 'all', q: '', key: 'cap', asc: false, grid: false },
+  c: { tab: 'all', q: '', key: 'cap', asc: false, grid: false, map: false, metric: 'cap' },
   g: { tab: 'all', q: '', map: false, metric: 'cap' },
   p: { tab: 'assets', edit: false },
   csOpen: false, cp: null, cpState: null,
@@ -49,6 +49,7 @@ var ICON = {
   search: I('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.500-3.500"/>'),
   sort: I('<path d="M4 6h10M4 12h7M4 18h4M17 5v14M14 16l3 3 3-3"/>'),
   list: I('<path d="M9 6h11M9 12h11M9 18h11M4 6h1M4 12h1M4 18h1"/>'),
+  tmap: I('<rect x="3" y="3" width="10" height="18" rx="1.500"/><rect x="15" y="3" width="6" height="8" rx="1.500"/><rect x="15" y="13" width="6" height="8" rx="1.500"/>'),
   grid: I('<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/>'),
   plus: I('<path d="M12 5v14M5 12h14"/>'),
   edit: I('<path d="M4 20h4L19 9l-4-4L4 16v4z"/>'),
@@ -203,7 +204,7 @@ function makeChart(box, data, forced) {
     layout: { background: { color: 'transparent' }, textColor: dark ? '#9aa0a6' : '#555' },
     grid: { vertLines: { color: dark ? '#1b1b1f' : '#e8e8ee' }, horzLines: { color: dark ? '#1b1b1f' : '#e8e8ee' } },
     rightPriceScale: { borderVisible: false }, timeScale: { borderVisible: false, timeVisible: true },
-    watermark: { visible: true, text: CONFIG.BRAND, fontSize: 34, color: dark ? 'rgba(255,255,255,.13)' : 'rgba(0,0,0,.1)', horzAlign: 'center', vertAlign: 'center' }
+    watermark: { visible: true, text: '@' + CONFIG.BRAND, fontSize: 34, color: dark ? 'rgba(255,255,255,.13)' : 'rgba(0,0,0,.1)', horzAlign: 'center', vertAlign: 'center' }
   });
   var up = '#22c55e', down = '#ef4444', s, st = forced || S.cs;
   if (st === 'candles') {
@@ -299,9 +300,10 @@ function paintCrypto() {
     '<div class="tabs">' + tabs.map(function (x) { return '<button class="' + (c.tab === x[0] ? 'on' : '') + '" data-act="ctab" data-v="' + x[0] + '">' + x[1] + x[2] + '</button>'; }).join('') + '</div>' +
     '<div class="bar"><label class="search">' + ICON.search + '<input id="q" value="' + esc(c.q) + '" placeholder="' + t('search_coins') + '"></label>' +
     '<button class="ib" data-act="csort">' + ICON.sort + '</button>' +
-    '<button class="ib ' + (!c.grid ? 'act' : '') + '" data-act="cview" data-v="list">' + ICON.list + '</button>' +
-    '<button class="ib ' + (c.grid ? 'act' : '') + '" data-act="cview" data-v="grid">' + ICON.grid + '</button></div>' +
-    sum + '<div id="list"></div>';
+    '<button class="ib ' + (!c.grid && !c.map ? 'act' : '') + '" data-act="cview" data-v="list">' + ICON.list + '</button>' +
+    '<button class="ib ' + (c.grid && !c.map ? 'act' : '') + '" data-act="cview" data-v="grid">' + ICON.grid + '</button>' +
+    '<button class="ib ' + (c.map ? 'act' : '') + '" data-act="cview" data-v="map">' + ICON.tmap + '</button></div>' +
+    (c.map ? '' : sum) + '<div id="list"></div>';
   paintCryptoList();
 }
 function coinList() {
@@ -325,6 +327,7 @@ function paintCryptoList() {
   var addBtn = '<div class="empty" style="padding:16px"><button class="btn" data-act="addcoins">+ ' + t('add_coins') + '</button></div>';
   if (c.tab === 'fav' && !L.length && !c.q) { box.innerHTML = '<div class="empty"><p>' + t('no_favs') + '</p><button class="btn" data-act="addcoins">+ ' + t('add_coins') + '</button></div>'; return; }
   var html;
+  if (c.map) return paintCoinMap(L, box);
   if (c.grid) {
     html = '<div class="grid">' + L.map(function (x) {
       return '<div class="cell" data-act="coin" data-v="' + esc(x.id) + '"><img class="lg" src="' + esc(x.image) + '" loading="lazy"><b>' + esc(x.symbol.toUpperCase()) + '</b><span class="p">$' + fmtPrice(x.current_price) + '</span>' + pill(x.price_change_percentage_24h) + '</div>';
@@ -445,26 +448,63 @@ function squarify(items, x, y, w, h) {
   if (row.length) layout(row);
   return out;
 }
+/* ---------- Treemap مشترك (هدايا + كريبتو) ---------- */
+function tmColor(c) {
+  c = +c || 0;
+  var i = Math.min(Math.abs(c) / 5, 1);
+  return c >= 0 ? 'hsl(145,85%,' + (37 - 9 * i) + '%)' : 'hsl(3,90%,' + (61 - 11 * i) + '%)';
+}
+// items: {id, act, value, name, short, price(html), change, imgFn(), minIcon}
+function treemapHtml(items, W, H) {
+  var tiles = squarify(items, 0, 0, W, H);
+  return tiles.map(function (n) {
+    var w = n.w, h = n.h, c = +n.change || 0;
+    var nm = (n.short && w / (n.name.length * 0.62) < 10) ? n.short : n.name;
+    var fs = Math.max(8, Math.min(20, w / (Math.max(nm.length, 4) * 0.62), h / 4.2));
+    var showName = w >= 34 && h >= 24 && fs >= 8.5;
+    var showChg = w >= 38 && h >= 40;
+    var showPrice = w >= 64 && h >= 70;
+    var iconS = Math.min(w * 0.55, h * 0.42, 104);
+    var showIcon = n.imgFn && h >= 56 && iconS >= (n.minIcon || 22);
+    return '<div class="tile" data-act="' + n.act + '" data-v="' + esc(n.id) + '" style="left:' + n.x.toFixed(1) + 'px;top:' + n.y.toFixed(1) + 'px;width:' + w.toFixed(1) + 'px;height:' + h.toFixed(1) + 'px;background:' + tmColor(c) + '">' +
+      (showIcon ? '<span class="tw" style="width:' + iconS.toFixed(0) + 'px;height:' + iconS.toFixed(0) + 'px">' + n.imgFn() + '</span>' : '') +
+      (showName ? '<b style="font-size:' + fs.toFixed(1) + 'px">' + esc(nm) + '</b>' : '') +
+      (showPrice ? '<i class="tp" style="font-size:' + Math.max(9, fs * 0.72).toFixed(1) + 'px">' + n.price + '</i>' : '') +
+      (showChg ? '<i style="font-size:' + Math.max(9, fs * 0.72).toFixed(1) + 'px">' + (c > 0 ? '+' : '') + c.toFixed(2) + '%</i>' : '') + '</div>';
+  }).join('');
+}
+function mapHeight() { return Math.max(380, Math.round(window.innerHeight - 250)); }
+function fillTreemap(items) {
+  var tm = $('#tm');
+  if (!tm) return;
+  if (!items.length) { tm.innerHTML = '<div class="empty">—</div>'; return; }
+  items.sort(function (a, b) { return b.value - a.value; });
+  tm.innerHTML = treemapHtml(items, tm.clientWidth, tm.clientHeight) + '<div class="tmwm">@' + esc(CONFIG.BRAND) + '</div>';
+}
 function paintMap(L, box) {
   var m = Gifts.hasSupply ? S.g.metric : 'floor';
-  // الحجم بالجذر التربيعي للفلور (عشان هدية واحدة غالية ماتبلعش باقي الخريطة)
-  var items = L.map(function (x) { return { g: x, value: m === 'cap' ? x.floor * x.supply : Math.sqrt(x.floor) }; }).sort(function (a, b) { return b.value - a.value; });
-  var H = Math.max(420, Math.round(window.innerHeight - 330));
+  // بدون كمية الإصدار: الحجم بالجذر التربيعي للفلور (عشان هدية غالية ماتبلعش الخريطة)
+  var items = L.map(function (x) {
+    return { id: x.id, act: 'gift', value: m === 'cap' ? x.floor * x.supply : Math.sqrt(x.floor), name: x.name, short: x.name.split(' ')[0],
+             price: gv(x.floor), change: x.change, minIcon: 30, imgFn: function () { return gImg(x, null, 'tim'); } };
+  });
   box.innerHTML = '<div class="mrow"><select id="metric">' +
     (Gifts.hasSupply ? '<option value="cap" ' + (m === 'cap' ? 'selected' : '') + '>' + t('market_cap') + '</option>' : '') +
-    '<option value="floor" ' + (m === 'floor' ? 'selected' : '') + '>' + t('floor') + '</option></select></div><div class="tm" id="tm" style="height:' + H + 'px"></div>';
-  var tm = $('#tm');
-  if (!items.length) { tm.innerHTML = '<div class="empty">—</div>'; return; }
-  var W = tm.clientWidth;
-  var tiles = squarify(items, 0, 0, W, H);
-  tm.innerHTML = '<div class="tmwm">' + esc(CONFIG.BRAND) + '</div>' + tiles.map(function (n) {
-    var c = n.g.change, i = Math.min(Math.abs(c) / 6, 1);
-    var bg = c > 0 ? 'rgba(34,197,94,' + (0.45 + 0.55 * i) + ')' : c < 0 ? 'rgba(239,68,68,' + (0.45 + 0.55 * i) + ')' : '#3a3a40';
-    var big = n.w > 70 && n.h > 44, mid = n.w > 44 && n.h > 28;
-    return '<div class="tile" data-act="gift" data-v="' + n.g.id + '" style="left:' + n.x + 'px;top:' + n.y + 'px;width:' + n.w + 'px;height:' + n.h + 'px;background:' + bg + '">' +
-      (mid ? '<b style="font-size:' + (big ? Math.min(15, 9 + n.w / 40) : 9) + 'px">' + esc(n.g.name) + '</b>' : '') +
-      (big ? '<i>' + gv(n.g.floor) + '</i><i>' + (c > 0 ? '+' : '') + c.toFixed(2) + '%</i>' : '') + '</div>';
-  }).join('');
+    '<option value="floor" ' + (m === 'floor' ? 'selected' : '') + '>' + t('floor') + '</option></select>' +
+    '<button class="ib" data-act="mshare">' + ICON.share + '</button></div><div class="tm" id="tm" style="height:' + mapHeight() + 'px"></div>';
+  fillTreemap(items);
+}
+function paintCoinMap(L, box) {
+  var m = S.c.metric;
+  var items = L.map(function (x) {
+    return { id: x.id, act: 'coin', value: Math.max(1, m === 'vol' ? x.total_volume : x.market_cap), name: x.name, short: x.symbol.toUpperCase(),
+             price: '$' + fmtPrice(x.current_price), change: x.price_change_percentage_24h, minIcon: 20,
+             imgFn: function () { return '<img class="tim" src="' + esc(x.image) + '" alt="">'; } };
+  });
+  box.innerHTML = '<div class="mrow"><select id="cmetric"><option value="cap" ' + (m === 'cap' ? 'selected' : '') + '>' + t('market_cap') + '</option>' +
+    '<option value="vol" ' + (m === 'vol' ? 'selected' : '') + '>' + t('volume') + '</option></select>' +
+    '<button class="ib" data-act="mshare">' + ICON.share + '</button></div><div class="tm" id="tm" style="height:' + mapHeight() + 'px"></div>';
+  fillTreemap(items);
 }
 function vModels(tok) {
   var gid = S.view.id;
@@ -642,7 +682,11 @@ var A = {
   },
   // crypto
   ctab: function (v) { S.c.tab = v; paintCrypto(); },
-  cview: function (v) { S.c.grid = v === 'grid'; paintCrypto(); },
+  cview: function (v) { S.c.grid = v === 'grid'; S.c.map = v === 'map'; paintCrypto(); },
+  mshare: function () {
+    var link = 'https://t.me/' + CONFIG.BOT_USERNAME;
+    openTg('https://t.me/share/url?url=' + encodeURIComponent(link) + '&text=' + encodeURIComponent('@' + CONFIG.BRAND + ' — ' + t('map')));
+  },
   csort: function () {
     var k = S.c.key, opts = [['cap', t('market_cap')], ['price', t('price')], ['chg', t('change24')], ['name', t('name')]];
     var rows = opts.map(function (o) { return { l: o[1], on: k === o[0], f: function () { S.c.key = o[0]; paintCryptoList(); } }; });
@@ -784,6 +828,7 @@ document.addEventListener('input', function (e) {
 });
 document.addEventListener('change', function (e) {
   if (e.target.id === 'metric') { S.g.metric = e.target.value; paintGiftList(); }
+  else if (e.target.id === 'cmetric') { S.c.metric = e.target.value; paintCryptoList(); }
 });
 
 /* ---------- boot ---------- */
