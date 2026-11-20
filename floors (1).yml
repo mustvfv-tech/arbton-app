@@ -1,0 +1,33 @@
+name: Update floors
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: arbton-data
+  cancel-in-progress: false
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Restore data
+        run: bash scripts/data-restore.sh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Fetch floors
+        run: node scripts/gs-floors.mjs
+        env:
+          OUT_DIR: _out
+          GS_TOKEN: ${{ secrets.GS_TOKEN }}
+          GS_BASE: ${{ vars.GS_BASE }}
+      - name: Publish data
+        run: bash scripts/data-publish.sh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
