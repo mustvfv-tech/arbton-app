@@ -161,3 +161,5 @@ img{display:block}
 .dhead .grow + *{margin-inline-start:auto}
 /* @ARBTON في شريط تحت الخريطة */
 .tmwm{left:10px;bottom:0;height:28px;line-height:28px;font-size:15px;color:var(--text);text-shadow:none}
+.tile{gap:1.5px;padding:1px;line-height:1.15}
+.tile b{max-width:98%}

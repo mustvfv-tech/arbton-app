@@ -275,8 +275,8 @@
     return out;
   }
   function mkey(m) { m = String(m || '').toLowerCase(); return m === 'telegram' ? 'tg' : m; }
-  function floorPoints(h, market) {
-    const arr = market === 'all' ? h.l : h[market];
+  function floorPoints(h, market, model) {
+    const arr = model ? (h.md && h.md[model]) : (market === 'all' ? h.l : h[market]);
     const out = [];
     if (!arr || !h.t) return out;
     for (let i = 0; i < h.t.length; i++) if (arr[i] > 0) out.push({ t: h.t[i], v: arr[i] });
@@ -334,7 +334,7 @@
       if (!e || !(e.floor > 0)) return;
       hit++;
       g.fragFloor = g.floor;           // فلور Fragment من TG Gifts (للمقارنة)
-      g.floor = e.floor; g.best = e.market; g.markets = e.markets;
+      g.floor = e.floor; g.best = e.market; g.markets = e.markets; g.mfl = e.models || {};
       // تغيّر 24 ساعة من لقطاتنا نحن (نفس مصدر السعر) لو متاح، وإلا بنسيب تغيّر TG Gifts اليومي
       if (e.p24 > 0) { g.change = Math.round((g.floor - e.p24) / e.p24 * 10000) / 100; g.chg24 = true; }
     });
@@ -480,12 +480,29 @@
     },
     models: async function (gid) {
       if (G.mode === 'demo') return demoModels(gid);
+      const g = (G._list || []).find(function (x) { return x.id === gid; });
       let arr = ((G._live.models || {})[gid] || []).map(function (m) {
         return { name: m.name, rarity: m.rarity, floor: m.floor, change: null, listings: m.listings };
       });
-      if (!arr.length) { // مفيش أسعار للموديلات من TG Gifts: نعرض الأسماء والصور والندرة بس
-        arr = (await G.modelNames(gid)).map(function (m) {
-          return { name: m.name, rarity: m.rarity, floor: null, change: null, listings: null };
+      if (!arr.length) arr = (await G.modelNames(gid)).map(function (m) { return { name: m.name, rarity: m.rarity, floor: null, change: null, listings: null }; });
+      // أسعار النماذج من عروض الأسواق (Gift Satellite): أقل عرض ظاهر لكل نموذج + سعره في كل سوق
+      const mfl = (g && g.mfl) || {};
+      const seen = {};
+      arr.forEach(function (m) {
+        seen[m.name] = 1;
+        const f = mfl[m.name];
+        if (f && f.p > 0) { m.floor = f.p; m.best = f.m; m.mk = f.mk; m.live = true; }
+      });
+      Object.keys(mfl).forEach(function (n) { if (!seen[n] && mfl[n].p > 0) arr.push({ name: n, rarity: null, floor: mfl[n].p, best: mfl[n].m, mk: mfl[n].mk, live: true, change: null, listings: null }); });
+      // تغيّر 24 ساعة لكل نموذج من لقطاتنا
+      const h = g ? await G.hist(g) : null;
+      if (h && h.md && h.t) {
+        const now = Math.floor(Date.now() / 1000);
+        arr.forEach(function (m) {
+          const a2 = h.md[m.name]; if (!a2 || !(m.floor > 0)) return;
+          for (let i = h.t.length - 1; i >= 0; i--) {
+            if (h.t[i] <= now - 23 * 3600 && a2[i] > 0) { if (h.t[i] >= now - 40 * 3600) m.change = Math.round((m.floor - a2[i]) / a2[i] * 10000) / 100; break; }
+          }
         });
       }
       arr.sort(function (a, b) { return (a.rarity == null ? 1e9 : a.rarity) - (b.rarity == null ? 1e9 : b.rarity); });
@@ -544,7 +561,7 @@
       if (o.mode === 'frag') return toCandles(g.points || [], o.tf === '1M' ? '1M' : o.tf === '1w' ? '1w' : '1d');
       if (o.mode === 'floor') {
         const h = await G.hist(g);
-        return h ? toOHLC(floorPoints(h, o.market), o.tf, true) : [];
+        return h ? toOHLC(floorPoints(h, o.market, o.model), o.tf, true) : [];
       }
       const s = await G.sales(g);
       return s ? toOHLC(salesPoints(s, o.market, o.model), o.tf, false) : [];
