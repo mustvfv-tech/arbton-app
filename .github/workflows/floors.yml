@@ -9,25 +9,24 @@ concurrency:
   group: arbton-data
   cancel-in-progress: false
 jobs:
-  update:
+  run:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Restore data
+      - name: Restore data branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash scripts/data-restore.sh
+      - name: Fetch
         env:
-          GITHUB_TOKEN: ${{ github.token }}
-      - name: Fetch floors
-        run: node scripts/gs-floors.mjs
-        env:
-          OUT_DIR: _out
           GS_TOKEN: ${{ secrets.GS_TOKEN }}
-          GS_BASE: ${{ vars.GS_BASE }}
-      - name: Publish data
-        run: bash scripts/data-publish.sh
+          OUT_DIR: _out
+        run: node scripts/gs-floors.mjs
+      - name: Publish
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/data-publish.sh
