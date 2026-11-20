@@ -42,6 +42,7 @@ if (names.length < 20) { console.error("قائمة الكوليكشنز غير �
 console.log("collections:", names.length);
 
 const found = {};   // found[name][market] = {p,n,s} | null
+const mfound = {};  // mfound[name][model][market] = أقل سعر ظاهر للموديل في العروض اللي رجعت
 let calls = 0, errors = 0;
 async function runMarket(m) {
   for (const name of names) {
@@ -50,7 +51,13 @@ async function runMarket(m) {
       const a = await get(`/search/${m}/${encodeURIComponent(name)}`);
       const arr = (Array.isArray(a) ? a : []).filter(x => x && num(x.normalizedPrice) > 0);
       let best = null;
-      for (const x of arr) if (!best || x.normalizedPrice < best.normalizedPrice) best = x;
+      for (const x of arr) {
+        if (!best || x.normalizedPrice < best.normalizedPrice) best = x;
+        if (x.modelName) {
+          const mm = ((mfound[name] ||= {})[x.modelName] ||= {});
+          if (mm[m] == null || x.normalizedPrice < mm[m]) mm[m] = Math.round(x.normalizedPrice * 1000) / 1000;
+        }
+      }
       (found[name] ||= {})[m] = best
         ? { p: Math.round(best.normalizedPrice * 1000) / 1000, n: arr.length, s: best.slug || null }
         : null;
@@ -79,18 +86,35 @@ for (const name of names) {
     const v = found[name] && found[name][m];
     if (v) { mk[m] = v; if (floor == null || v.p < floor) { floor = v.p; market = m; } }
   }
-  // تاريخ الفلور (أعمدة): t = الوقت، l = الأقل، وبعدها كل سوق
+  // فلور كل موديل (أقل عرض ظاهر عبر كل الأسواق) + سعره في كل سوق
+  const models = {};
+  for (const [mn, byM] of Object.entries(mfound[name] || {})) {
+    let p = null, mkt = null;
+    for (const [k, v] of Object.entries(byM)) if (p == null || v < p) { p = v; mkt = k; }
+    if (p != null) models[mn] = { p, m: mkt, mk: byM };
+  }
+  // تاريخ الفلور (أعمدة): t = الوقت، l = الأقل، وبعدها كل سوق، و md = تاريخ فلور كل موديل
   const hf = OUT + "/h/" + norm(name) + ".json";
   const h = readJSON(hf, { t: [], l: [] });
   MK.forEach(m => { if (!h[m]) h[m] = new Array(h.t.length).fill(null); });
+  h.md = h.md || {};
   h.t.push(now); h.l.push(floor);
   MK.forEach(m => h[m].push(mk[m] ? mk[m].p : null));
-  if (h.t.length > MAX_POINTS) { const k = h.t.length - MAX_POINTS; for (const key of Object.keys(h)) h[key] = h[key].slice(k); }
+  for (const mn of new Set([...Object.keys(h.md), ...Object.keys(models)])) {
+    const arr = h.md[mn] || (h.md[mn] = new Array(h.t.length - 1).fill(null));
+    arr.push(models[mn] ? models[mn].p : null);
+  }
+  if (h.t.length > MAX_POINTS) {
+    const k = h.t.length - MAX_POINTS;
+    for (const key of Object.keys(h)) if (key !== "md") h[key] = h[key].slice(k);
+    for (const mn of Object.keys(h.md)) h.md[mn] = h.md[mn].slice(k);
+  }
+  for (const mn of Object.keys(h.md)) if (h.md[mn].every(v => v == null)) delete h.md[mn];
   fs.writeFileSync(hf, JSON.stringify(h));
   // سعر قبل ~24 ساعة (لحساب التغيّر)
   let p24 = null;
   for (let i = h.t.length - 1; i >= 0; i--) { if (h.t[i] <= now - 23 * 3600 && h.l[i] > 0) { if (h.t[i] >= now - 36 * 3600) p24 = h.l[i]; break; } }
-  collections[name] = { floor, market, markets: mk, p24 };
+  collections[name] = { floor, market, markets: mk, p24, models };
 }
 fs.writeFileSync(OUT + "/floors.json", JSON.stringify({ updated: now, source: "Gift Satellite", count: names.length, collections }));
 const withFloor = Object.values(collections).filter(c => c.floor != null).length;
