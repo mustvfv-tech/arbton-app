@@ -23,6 +23,12 @@
     markets: function () {
       return getJSON('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false&price_change_percentage=24h', 60000);
     },
+    search: function (q) {
+      return getJSON('https://api.coingecko.com/api/v3/search?query=' + encodeURIComponent(q), 120000).then(function (j) { return (j && j.coins) || []; });
+    },
+    byId: function (id) {
+      return getJSON('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=' + encodeURIComponent(id) + '&price_change_percentage=24h', 60000).then(function (a) { return a && a[0]; });
+    },
     global: function () {
       return getJSON('https://api.coingecko.com/api/v3/global', 60000).then(function (j) { return j.data; });
     },
@@ -63,7 +69,29 @@
   const RATE_URL = 'https://atlannn.github.io/telegram-gifts-floor-price/api/v1/latest.json';
   // الصور والأسماء الرسمية: Gift Changes (cdn.changes.tg / api.changes.tg) — مجاني بشرط ذكر @GiftChanges
   // أسعار الأسواق (Gift Satellite) بتتحدّث كل ~30 دقيقة بواسطة GitHub Actions وتتخزن في الريبو نفسه
-  const FLOORS_URL = 'data/floors.json', HIST_URL = 'data/floors-history.json';
+  // الداتا بتتنشر في فرع data (raw.githubusercontent.com). بنستنتج المسار من رابط GitHub Pages، أو من CONFIG.DATA_BASE
+  function dataBase() {
+    const c = window.CONFIG && window.CONFIG.DATA_BASE;
+    if (c) return String(c).replace(/\/?$/, '/');
+    try {
+      const h = location.hostname;
+      if (/\.github\.io$/.test(h)) {
+        const repo = location.pathname.split('/')[1];
+        if (repo) return 'https://raw.githubusercontent.com/' + h.split('.')[0] + '/' + repo + '/data/';
+      }
+    } catch (e) {}
+    return 'data/';
+  }
+  const FLOORS_URL = dataBase() + 'floors.json';
+  const dataCache = {};
+  function dataGet(path) {
+    const k = path + '|' + Math.floor(Date.now() / 300000);
+    if (!dataCache[k]) dataCache[k] = fetch(dataBase() + path + '?t=' + Math.floor(Date.now() / 300000))
+      .then(function (r) { if (!r.ok) throw 0; return r.json(); }).catch(function () { return null; });
+    return dataCache[k];
+  }
+  // صور مصغّرة عبر wsrv.nl (أخف بكتير من PNG الأصلي 300KB+، وبيدعم CORS للتصدير)
+  function thumb(u, w, fmt) { return 'https://wsrv.nl/?url=' + encodeURIComponent(u) + '&w=' + (w || 160) + '&output=' + (fmt || 'webp') + '&q=85'; }
   const MARKET_LABEL = { portals: 'Portals', tonnel: 'Tonnel', mrkt: 'MRKT', getgems: 'GetGems', tg: 'Telegram' };
   const NAME_URLS = ['https://api.changes.tg/names', 'https://cdn.changes.tg/gifts/id-to-name.json'];
   // الأسماء الرسمية (أسماء مجلدات cdn.changes.tg/gifts/models/) — نسخة ثابتة عشان مفيش اعتماد على طلب شبكة
@@ -226,6 +254,52 @@
       return { time: g.time, open: open, high: hi, low: lo, close: close };
     });
   }
+  // ---- مساعدات الشارت ----
+  const STEP = { '2h': 7200, '4h': 14400, '1d': 86400, '1w': 604800 };
+  function bucketKey(t, tf) {
+    if (tf === '1M') { const d = new Date(t * 1000); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000; }
+    const s = STEP[tf] || 86400; return Math.floor(t / s) * s;
+  }
+  // نقاط [{t,v}] مرتبة تصاعدياً → شموع. carry=true: افتتاح الشمعة = إغلاق اللي قبلها (للفلور المستمر)
+  function toOHLC(pts, tf, carry) {
+    const out = []; let cur = null, prevClose = null;
+    pts.forEach(function (p) {
+      const k = bucketKey(p.t, tf);
+      if (!cur || cur.time !== k) {
+        if (cur) { prevClose = cur.close; out.push(cur); }
+        const o = carry && prevClose != null ? prevClose : p.v;
+        cur = { time: k, open: o, high: Math.max(o, p.v), low: Math.min(o, p.v), close: p.v };
+      } else { cur.high = Math.max(cur.high, p.v); cur.low = Math.min(cur.low, p.v); cur.close = p.v; }
+    });
+    if (cur) out.push(cur);
+    return out;
+  }
+  function mkey(m) { m = String(m || '').toLowerCase(); return m === 'telegram' ? 'tg' : m; }
+  function floorPoints(h, market) {
+    const arr = market === 'all' ? h.l : h[market];
+    const out = [];
+    if (!arr || !h.t) return out;
+    for (let i = 0; i < h.t.length; i++) if (arr[i] > 0) out.push({ t: h.t[i], v: arr[i] });
+    return out;
+  }
+  function salesPoints(sj, market, model) {
+    return sj.s.filter(function (x) { return x[1] > 0 && (market === 'all' || mkey(x[2]) === market) && (!model || x[4] === model); })
+      .map(function (x) { return { t: x[0], v: x[1] }; }).sort(function (a, b) { return a.t - b.t; });
+  }
+  function volumeStats(rows) {
+    const now = Math.floor(Date.now() / 1000), W = { d1: 86400, d7: 604800, d30: 2592000 }, out = {};
+    Object.keys(W).concat(['all']).forEach(function (k) {
+      const r = k === 'all' ? rows : rows.filter(function (x) { return x[0] >= now - W[k]; });
+      const vol = r.reduce(function (a, x) { return a + x[1]; }, 0);
+      out[k] = { n: r.length, vol: vol, avg: r.length ? vol / r.length : 0,
+                 hi: r.length ? Math.max.apply(null, r.map(function (x) { return x[1]; })) : 0,
+                 lo: r.length ? Math.min.apply(null, r.map(function (x) { return x[1]; })) : 0 };
+    });
+    const by = {};
+    rows.forEach(function (x) { const m = mkey(x[2]) || '?'; (by[m] || (by[m] = { n: 0, vol: 0 })); by[m].n++; by[m].vol += x[1]; });
+    out.by = by;
+    return out;
+  }
   function findRate(j) {
     const cand = [j, j && j.rates, j && j.rate, j && j.fx, j && j.gram, j && j.meta, j && j.data && j.data.rates];
     const keys = ['usd', 'USD', 'gram_usd', 'gram_usd_rate', 'rate_usd', 'usd_rate'];
@@ -250,26 +324,19 @@
     throw new Error(errs.join(' · ') || 'no source');
   }
   // دمج أسعار الأسواق: السعر المعروض = أقل فلور بين الأسواق، وكل سوق بسعره
-  function applyMarkets(gifts, fl, hist) {
+  function applyMarkets(gifts, fl) {
     if (!isObj(fl) || !isObj(fl.collections)) return null;
     const idx = {};
     Object.keys(fl.collections).forEach(function (k) { idx[norm(k)] = fl.collections[k]; });
     let hit = 0;
-    const now = Math.floor(Date.now() / 1000);
     gifts.forEach(function (g) {
       const e = idx[norm(g.official)] || idx[norm(g.name)] || idx[norm(g.id)];
       if (!e || !(e.floor > 0)) return;
       hit++;
       g.fragFloor = g.floor;           // فلور Fragment من TG Gifts (للمقارنة)
       g.floor = e.floor; g.best = e.market; g.markets = e.markets;
-      // تغيّر 24 ساعة من لقطاتنا نحن (نفس مصدر السعر) لو التاريخ كفاية، وإلا نسيب تغيّر TG Gifts اليومي
-      const nm = Object.keys(fl.collections).find(function (k) { return norm(k) === norm(g.official) || norm(k) === norm(g.name); });
-      const arr = hist && hist.c && nm ? hist.c[nm] : null;
-      if (arr && hist.t) {
-        let old = null;
-        for (let i = hist.t.length - 1; i >= 0; i--) { if (hist.t[i] <= now - 23 * 3600 && arr[i] > 0) { old = arr[i]; break; } }
-        if (old) { g.change = Math.round((g.floor - old) / old * 10000) / 100; g.chg24 = true; }
-      }
+      // تغيّر 24 ساعة من لقطاتنا نحن (نفس مصدر السعر) لو متاح، وإلا بنسيب تغيّر TG Gifts اليومي
+      if (e.p24 > 0) { g.change = Math.round((g.floor - e.p24) / e.p24 * 10000) / 100; g.chg24 = true; }
     });
     return { updated: fl.updated, hit: hit, total: Object.keys(fl.collections).length };
   }
@@ -281,8 +348,7 @@
       firstJSON(MODEL_URLS).then(function (x) { return extractModels(x.json); }).catch(function () { return {}; }),
       fetch(RATE_URL).then(function (x) { return x.json(); }).then(findRate).catch(function () { return null; }),
       firstJSON(NAME_URLS).then(function (x) { return nameMap(x.json); }).catch(function () { return {}; }),
-      fetch(FLOORS_URL + '?t=' + Math.floor(Date.now() / 300000)).then(function (x) { if (!x.ok) throw 0; return x.json(); }).catch(function () { return null; }),
-      fetch(HIST_URL + '?t=' + Math.floor(Date.now() / 300000)).then(function (x) { if (!x.ok) throw 0; return x.json(); }).catch(function () { return null; })
+      fetch(FLOORS_URL + '?t=' + Math.floor(Date.now() / 300000)).then(function (x) { if (!x.ok) throw 0; return x.json(); }).catch(function () { return null; })
     ]);
     // الاسم الرسمي (زي "Plush Pepe") هو اللي بيتبني عليه مسار الصور في cdn.changes.tg
     const names = {};
@@ -293,7 +359,7 @@
       g.official = hit || g.name;
       if (hit) g.name = hit; // يعرض الاسم الرسمي (Plush Pepe) بدل الجمع (Plush Pepes)
     });
-    const mk = applyMarkets(gifts, res[3], res[4]);
+    const mk = applyMarkets(gifts, res[3]);
     return { gifts: gifts, models: res[0], rate: res[1], source: hostOf(f.url), mk: mk };
   }
 
@@ -382,11 +448,15 @@
     // روابط الصور المحتملة بالترتيب (لو الأولى فشلت يجرب اللي بعدها، وبعدين المربع الملوّن)
     imgs: function (g, model) {
       const base = CDN_MODELS + encodeURIComponent(g.official || g.name) + '/png/';
-      if (model) return [base + encodeURIComponent(model) + '.png'];
-      const urls = [base + 'Original.png'];
-      const ms = G._live && G._live.models ? G._live.models[g.id] : null;
-      if (ms && ms.length) urls.push(base + encodeURIComponent(ms[0].name) + '.png');
-      return urls;
+      let urls;
+      if (model) urls = [base + encodeURIComponent(model) + '.png'];
+      else {
+        urls = [base + 'Original.png'];
+        const ms = G._live && G._live.models ? G._live.models[g.id] : null;
+        if (ms && ms.length) urls.push(base + encodeURIComponent(ms[0].name) + '.png');
+      }
+      // المصغّرة أولاً، وبعدها الأصلية (لو الخدمة وقعت)
+      return urls.map(function (u) { return thumb(u, 160); }).concat(urls);
     },
     // أسماء النماذج من Gift Changes (بدون أسعار): API أولاً ثم ملف models.json في الـ CDN
     modelNames: function (gid) {
@@ -454,13 +524,45 @@
       const first = (G._list && G._list[0]) ? G._list[0] : null;
       return out.concat(imgs).concat([['Active source', G.mode === 'live', G.mode + (G.source ? ' · ' + G.source : '') + (first ? ' · e.g. ' + first.id + ' → ' + (first.official || first.name) : '')]]);
     },
+    thumb: thumb,
+    // صور التصدير: أصلية عالية الجودة عبر wsrv (CORS آمن)
+    exportImgs: function (g, model) {
+      const base = CDN_MODELS + encodeURIComponent(g.official || g.name) + '/png/';
+      let urls;
+      if (model) urls = [base + encodeURIComponent(model) + '.png'];
+      else {
+        urls = [base + 'Original.png'];
+        const ms = G._live && G._live.models ? G._live.models[g.id] : null;
+        if (ms && ms.length) urls.push(base + encodeURIComponent(ms[0].name) + '.png');
+      }
+      return urls.map(function (u) { return thumb(u, 320, 'png'); });
+    },
+    // ---- شارت الهدايا الحقيقي: مبيعات فعلية + فلور الأسواق (لقطات كل 30 دقيقة) ----
+    hist: function (g) { return dataGet('h/' + norm(g.official || g.name) + '.json'); },
+    sales: function (g) { return dataGet('sales/' + norm(g.official || g.name) + '.json'); },
+    series: async function (g, o) {
+      if (o.mode === 'frag') return toCandles(g.points || [], o.tf === '1M' ? '1M' : o.tf === '1w' ? '1w' : '1d');
+      if (o.mode === 'floor') {
+        const h = await G.hist(g);
+        return h ? toOHLC(floorPoints(h, o.market), o.tf, true) : [];
+      }
+      const s = await G.sales(g);
+      return s ? toOHLC(salesPoints(s, o.market, o.model), o.tf, false) : [];
+    },
+    salesRows: async function (g, market, model) {
+      const s = await G.sales(g);
+      if (!s || !Array.isArray(s.s)) return { rows: [], all: 0, since: null };
+      const rows = s.s.filter(function (x) { return (market === 'all' || mkey(x[2]) === market) && (!model || x[4] === model); });
+      return { rows: rows, all: rows.length, since: rows.length ? rows[rows.length - 1][0] : null };
+    },
+    volume: function (rows) { return volumeStats(rows); },
     chart: function (gid, model, tf, floor) {
       if (G.mode === 'demo') return demoChart(gid, model, tf, floor);
       if (model) return Promise.resolve([]); // مفيش تاريخ للموديلات في المصدر
       const g = (G._list || []).find(function (x) { return x.id === gid; });
       return Promise.resolve(g ? toCandles(g.points, tf) : []);
     },
-    _t: { nameMap: nameMap, norm: norm, extractCollections: extractCollections, extractModels: extractModels, buildGifts: buildGifts, toCandles: toCandles, findRate: findRate }
+    _t: { toOHLC: toOHLC, floorPoints: floorPoints, salesPoints: salesPoints, volumeStats: volumeStats, bucketKey: bucketKey, dataBase: dataBase, nameMap: nameMap, norm: norm, extractCollections: extractCollections, extractModels: extractModels, buildGifts: buildGifts, toCandles: toCandles, findRate: findRate }
   };
   window.Gifts = G;
   window.Crypto = Crypto;
