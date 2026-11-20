@@ -1,12 +1,13 @@
 // يسحب أقل سعر لكل كوليكشن في كل سوق من Gift Satellite ويحفظه في data/floors.json
-// + يخزّن لقطات تاريخية (data/floors-history.json) عشان نعمل تغيّر 24 ساعة وشارت حقيقي.
+// + يخزّن تاريخ الفلور لكل كوليكشن ولكل سوق في data/h/<name>.json (للشارت وتغيّر 24 ساعة).
 import fs from "node:fs";
 
 const BASE = (process.env.GS_BASE || "https://gift-satellite.dev/api").replace(/\/$/, "");
 const TOKEN = process.env.GS_TOKEN;
 const OUT = process.env.OUT_DIR || "data";
 const FAST = !!process.env.GS_FAST; // للاختبار المحلي فقط
-const MAX_POINTS = 400;             // ~8 أيام كل 30 دقيقة
+const MAX_POINTS = 700;             // ~14 يوم كل 30 دقيقة
+const norm = x => String(x).toLowerCase().replace(/[^a-z0-9]/g, "");
 if (!TOKEN) { console.error("GS_TOKEN غير موجود"); process.exit(1); }
 
 // الفاصل بين الطلبات (ms) حسب حد كل سوق في التوثيق (tg: طلب كل 1.5 ث، الباقي 2/ث)
@@ -68,28 +69,29 @@ catch (e) { console.error("توقف:", e.message); process.exit(1); }
 console.log(`calls=${calls} errors=${errors}`);
 if (errors > calls * 0.3) { console.error("أخطاء كتير، مش هستبدل الملف القديم"); process.exit(1); }
 
+const now = Math.floor(Date.now() / 1000);
+fs.mkdirSync(OUT + "/h", { recursive: true });
+const MK = Object.keys(GAP);
 const collections = {};
 for (const name of names) {
   const mk = {}; let floor = null, market = null;
-  for (const m of Object.keys(GAP)) {
+  for (const m of MK) {
     const v = found[name] && found[name][m];
     if (v) { mk[m] = v; if (floor == null || v.p < floor) { floor = v.p; market = m; } }
   }
-  collections[name] = { floor, market, markets: mk };
+  // تاريخ الفلور (أعمدة): t = الوقت، l = الأقل، وبعدها كل سوق
+  const hf = OUT + "/h/" + norm(name) + ".json";
+  const h = readJSON(hf, { t: [], l: [] });
+  MK.forEach(m => { if (!h[m]) h[m] = new Array(h.t.length).fill(null); });
+  h.t.push(now); h.l.push(floor);
+  MK.forEach(m => h[m].push(mk[m] ? mk[m].p : null));
+  if (h.t.length > MAX_POINTS) { const k = h.t.length - MAX_POINTS; for (const key of Object.keys(h)) h[key] = h[key].slice(k); }
+  fs.writeFileSync(hf, JSON.stringify(h));
+  // سعر قبل ~24 ساعة (لحساب التغيّر)
+  let p24 = null;
+  for (let i = h.t.length - 1; i >= 0; i--) { if (h.t[i] <= now - 23 * 3600 && h.l[i] > 0) { if (h.t[i] >= now - 36 * 3600) p24 = h.l[i]; break; } }
+  collections[name] = { floor, market, markets: mk, p24 };
 }
-const now = Math.floor(Date.now() / 1000);
-fs.mkdirSync(OUT, { recursive: true });
 fs.writeFileSync(OUT + "/floors.json", JSON.stringify({ updated: now, source: "Gift Satellite", count: names.length, collections }));
-
-// لقطات تاريخية (أعمدة: t + مصفوفة أسعار لكل اسم)
-const h = readJSON(OUT + "/floors-history.json", { t: [], c: {} });
-h.t.push(now);
-for (const name of new Set([...names, ...Object.keys(h.c)])) {
-  const arr = h.c[name] || (h.c[name] = new Array(h.t.length - 1).fill(null));
-  arr.push(collections[name] ? collections[name].floor : null);
-}
-if (h.t.length > MAX_POINTS) { const k = h.t.length - MAX_POINTS; h.t = h.t.slice(k); for (const n in h.c) h.c[n] = h.c[n].slice(k); }
-for (const n in h.c) if (h.c[n].every(v => v == null)) delete h.c[n];
-fs.writeFileSync(OUT + "/floors-history.json", JSON.stringify(h));
 const withFloor = Object.values(collections).filter(c => c.floor != null).length;
 console.log(`done: ${withFloor}/${names.length} collections have a floor`);
