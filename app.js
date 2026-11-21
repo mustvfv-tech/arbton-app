@@ -243,13 +243,13 @@ function paintPicker(q) {
 function addSeries(chart, data, forced) {
   var up = '#22c55e', down = '#ef4444', s, st = forced || S.cs;
   if (st === 'candles') {
-    s = chart.addCandlestickSeries({ upColor: up, downColor: down, borderVisible: false, wickUpColor: up, wickDownColor: down });
+    s = chart.addCandlestickSeries({ upColor: up, downColor: down, borderUpColor: up, borderDownColor: down, borderVisible: true, wickUpColor: up, wickDownColor: down });
     s.setData(data);
   } else if (st === 'line') {
-    s = chart.addLineSeries({ color: '#3b82f6', lineWidth: 2 });
+    s = chart.addLineSeries({ color: '#3b82f6', lineWidth: 3, crosshairMarkerRadius: 5 });
     s.setData(data.map(function (x) { return { time: x.time, value: x.close }; }));
   } else {
-    s = chart.addAreaSeries({ lineColor: '#3b82f6', topColor: 'rgba(59,130,246,.4)', bottomColor: 'rgba(59,130,246,0)' });
+    s = chart.addAreaSeries({ lineColor: '#3b82f6', lineWidth: 3, topColor: 'rgba(59,130,246,.35)', bottomColor: 'rgba(59,130,246,0)' });
     s.setData(data.map(function (x) { return { time: x.time, value: x.close }; }));
   }
   return s;
@@ -261,10 +261,10 @@ function makeChart(box, data, forced) {
   var dark = S.theme !== 'light';
   var chart = LightweightCharts.createChart(box, {
     width: box.clientWidth, height: box.clientHeight,
-    layout: { background: { color: 'transparent' }, textColor: dark ? '#9aa0a6' : '#555' },
-    grid: { vertLines: { color: dark ? '#1b1b1f' : '#e8e8ee' }, horzLines: { color: dark ? '#1b1b1f' : '#e8e8ee' } },
+    layout: { background: { color: 'transparent' }, textColor: dark ? '#c4c7cc' : '#333', fontSize: 13 },
+    grid: { vertLines: { color: dark ? '#26262b' : '#e2e2ea' }, horzLines: { color: dark ? '#26262b' : '#e2e2ea' } },
     rightPriceScale: { borderVisible: false }, timeScale: { borderVisible: false, timeVisible: true },
-    watermark: { visible: true, text: '@' + CONFIG.BRAND, fontSize: 34, color: dark ? 'rgba(255,255,255,.13)' : 'rgba(0,0,0,.1)', horzAlign: 'center', vertAlign: 'center' }
+    watermark: { visible: true, text: '\uD83D\uDC8E @' + CONFIG.BRAND, fontSize: 30, color: dark ? 'rgba(255,255,255,.10)' : 'rgba(0,0,0,.08)', horzAlign: 'center', vertAlign: 'center' }
   });
   S.lastData = data; S.lastForced = forced;
   addSeries(chart, data, forced);
@@ -703,7 +703,7 @@ function fillTreemap(items, title, total) {
   var W = tm.clientWidth, H = tmFit(items, W, mapHeight());
   tm.style.height = (H + FOOT) + 'px';
   var mk = tmMark(tmTiles(items, W, H));
-  tm.innerHTML = treemapHtml(items, W, H) + '<div class="tmwm" style="' + (mk ? 'left:' + mk.x.toFixed(0) + 'px;top:' + mk.y.toFixed(0) + 'px;font-size:' + mk.fs.toFixed(0) + 'px' : 'left:8px;bottom:4px') + '">@' + esc(CONFIG.BRAND) + '</div>';
+  tm.innerHTML = treemapHtml(items, W, H) + '<div class="tmwm" style="' + (mk ? 'left:' + mk.x.toFixed(0) + 'px;top:' + mk.y.toFixed(0) + 'px;font-size:' + mk.fs.toFixed(0) + 'px' : 'left:8px;bottom:4px') + '">\uD83D\uDC8E @' + esc(CONFIG.BRAND) + '</div>';
   var cnt = $('#tmcount'); if (cnt) cnt.textContent = t('shown_count').replace('{n}', tm.querySelectorAll('.tile').length).replace('{m}', total);
   S.tmData = { items: items, W: W, H: H, title: title };
 }
@@ -829,11 +829,16 @@ function vGift(tok) {
   $('#view').innerHTML = loadingBox();
   getGifts().then(function (list) {
     var g = list.find(function (x) { return x.id === S.view.id; }); if (!g) return back();
-    var mp = S.view.model ? Gifts.models(g.id) : Promise.resolve(null);
+    var mp = S.view.model ? Gifts.models(g.id) : Promise.resolve(null), fb = null;
+    if (S.view.model) mp = mp.then(function (ms) { // موديل من غير فلور: نستخدم آخر عملية بيع بدل "—"
+      var m0 = ms && ms.find(function (x) { return x.name === S.view.model; });
+      if (m0 && m0.floor != null) return ms;
+      return Gifts.salesRows(g, 'all', S.view.model).then(function (r) { if (r.rows.length) fb = r.rows[0]; return ms; }).catch(function () { return ms; });
+    });
     return mp.then(function (ms) {
       if (tok !== S.tok) return;
       var name = g.name, floor = g.floor, chg = g.change, rar = null, lst = null, isModel = false;
-      if (ms) { var m = ms.find(function (x) { return x.name === S.view.model; }); if (m) { isModel = true; name = g.name + ' · ' + m.name; floor = m.floor; chg = m.change; rar = m.rarity; lst = m.listings; } }
+      if (ms) { var m = ms.find(function (x) { return x.name === S.view.model; }); if (m) { isModel = true; name = g.name + ' · ' + m.name; floor = m.floor; chg = m.change; rar = m.rarity; lst = m.listings; if (floor == null && fb) { floor = fb[1]; } } }
       var hasMk = !isModel && g.markets && Gifts.mode === 'live';
       var ov = floor != null ? [[hasMk ? t('best_floor') + ' (' + (Gifts.marketLabel[g.best] || g.best) + ')' : t('floor') + (Gifts.mode === 'live' ? ' (' + t('market_src') + ')' : ''), gv(floor)]] : [];
       if (hasMk) {
@@ -1297,7 +1302,7 @@ function exportCard(info) { // كارت مشاركة 1080×1350
     if (th === 'gold') { gr.addColorStop(0, '#1d1404'); gr.addColorStop(1, '#4a3208'); } else if (light) { gr.addColorStop(0, '#ffffff'); gr.addColorStop(1, '#e9edf5'); } else { gr.addColorStop(0, '#0b0b0d'); gr.addColorStop(1, '#1a1f2e'); }
     c.fillStyle = gr; c.fillRect(0, 0, W, H);
     var fg = light ? '#111' : '#fff', mu = light ? '#666' : (th === 'gold' ? '#c9a95a' : '#9aa0aa'), acc = th === 'gold' ? '#f5b301' : '#3b82f6';
-    c.textBaseline = 'middle'; c.textAlign = 'left'; c.fillStyle = acc; c.font = '800 46px ' + FONT; c.fillText('@' + CONFIG.BRAND, 56, 70);
+    c.textBaseline = 'middle'; c.textAlign = 'left'; c.fillStyle = acc; c.font = '800 46px ' + FONT; c.fillText('\uD83D\uDC8E @' + CONFIG.BRAND, 56, 70);
     c.textAlign = 'right'; c.fillStyle = mu; c.font = '600 28px ' + FONT; c.fillText(new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), W - 56, 70);
     var y = 130;
     if (im) { c.save(); rr(c, W / 2 - 210, y, 420, 420, 70); c.clip(); c.drawImage(im, W / 2 - 210, y, 420, 420); c.restore(); }
@@ -1368,7 +1373,7 @@ function exportMap() {
     var mk = tmMark(tiles), mx = mk ? mk.x * k : 8 * k, my = mk ? head + (mk.y + mk.fs / 2) * k : H - 12 * k;
     c.textAlign = 'left'; c.textBaseline = 'middle'; c.font = '800 ' + Math.round((mk ? mk.fs : 14) * k) + 'px ' + FONT;
     c.shadowColor = 'rgba(0,0,0,.55)'; c.shadowBlur = 4 * k; c.fillStyle = 'rgba(255,255,255,.92)';
-    c.fillText('@' + CONFIG.BRAND, mx, my); c.shadowBlur = 0;
+    c.fillText('\uD83D\uDC8E @' + CONFIG.BRAND, mx, my); c.shadowBlur = 0;
     showImage(cv, CONFIG.BRAND + '-map.png');
   });
 }
@@ -1381,10 +1386,10 @@ function exportChart() {
   document.body.appendChild(div);
   var chart = LightweightCharts.createChart(div, {
     width: W, height: H,
-    layout: { background: { color: dark ? '#0b0b0d' : '#ffffff' }, textColor: dark ? '#b8bbc0' : '#444', fontSize: 22 },
-    grid: { vertLines: { color: dark ? '#1b1b1f' : '#e8e8ee' }, horzLines: { color: dark ? '#1b1b1f' : '#e8e8ee' } },
+    layout: { background: { color: dark ? '#0b0b0d' : '#ffffff' }, textColor: dark ? '#d0d3d8' : '#333', fontSize: 24 },
+    grid: { vertLines: { color: dark ? '#26262b' : '#e2e2ea' }, horzLines: { color: dark ? '#26262b' : '#e2e2ea' } },
     rightPriceScale: { borderVisible: false }, timeScale: { borderVisible: false, timeVisible: true },
-    watermark: { visible: true, text: '@' + CONFIG.BRAND, fontSize: 110, color: dark ? 'rgba(255,255,255,.13)' : 'rgba(0,0,0,.1)', horzAlign: 'center', vertAlign: 'center' }
+    watermark: { visible: true, text: '\uD83D\uDC8E @' + CONFIG.BRAND, fontSize: 100, color: dark ? 'rgba(255,255,255,.10)' : 'rgba(0,0,0,.08)', horzAlign: 'center', vertAlign: 'center' }
   });
   addSeries(chart, data, S.lastForced); chart.timeScale().fitContent();
   var imgP = loadImgTry(cfg.imgUrls ? cfg.imgUrls() : []);
@@ -1435,6 +1440,11 @@ applyTheme();
 try { if (tg) { tg.ready(); tg.expand(); tg.BackButton.onClick(back); } } catch (e) {}
 render();
 intro();
+// رابط من إشعار الجروب: startapp=g_<اسم الهدية>
+try {
+  var sp = (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) || '';
+  if (/^g_/.test(sp)) { var gn = decodeURIComponent(sp.slice(2)); S.tab = 'gifts'; render(); getGifts().then(function () { openGiftByName(gn); }); }
+} catch (e) {}
 // تحديث تلقائي لقائمة العملات كل دقيقة
 setInterval(function () {
   if (document.hidden || S.tab !== 'crypto' || S.view || !$('#list')) return;
