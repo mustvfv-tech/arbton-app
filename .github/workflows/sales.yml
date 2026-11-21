@@ -26,6 +26,10 @@ jobs:
           GS_TOKEN: ${{ secrets.GS_TOKEN }}
           OUT_DIR: _out
         run: node scripts/gs-sales.mjs
+      - name: Summary (top + opportunities)
+        env:
+          OUT_DIR: _out
+        run: node scripts/gs-summary.mjs
       - name: Publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
