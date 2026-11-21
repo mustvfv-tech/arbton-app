@@ -412,6 +412,7 @@ function vCoin(tok) {
       tfs: CTFS, tf: '1h', fname: c.symbol,
       fetch: function (tf) { return Crypto.candles(c.symbol, c.id, tf); },
       isFav: function () { return S.favC.indexOf(c.id) >= 0; }, toggleFav: function () { toggle(S.favC, c.id, 'favC'); },
+      alertName: c.name, alertCoin: { id: c.id, name: c.name, symbol: c.symbol },
       shareText: c.name + ' — $' + fmtPrice(c.current_price),
       overview: [
         [t('rank'), '#' + (c.market_cap_rank || '—')], [t('market_cap'), '$' + fmtBig(c.market_cap)], [t('volume'), '$' + fmtBig(c.total_volume)],
@@ -942,13 +943,13 @@ var A = {
     var name = S.cp && S.cp.alertName; if (!name) return;
     modal('<h3>' + t('alert_title') + ' · ' + esc(name) + '</h3>' +
       '<div class="frow"><select id="al_op"><option value="<=">' + t('alert_below') + '</option><option value=">=">' + t('alert_above') + '</option></select></div>' +
-      '<div class="frow"><label>' + t('alert_price') + '</label><input id="al_p" type="number" inputmode="decimal" min="0" step="any"></div>' +
+      '<div class="frow"><label>' + (S.cp.alertCoin ? t('alert_price_usd') : t('alert_price')) + '</label><input id="al_p" type="number" inputmode="decimal" min="0" step="any"></div>' +
       '<div class="btns"><button class="btn ghost" data-act="mclose">' + t('done') + '</button><button class="btn" data-act="alertsave">' + t('alert_save') + '</button></div>');
   },
   alertsave: function () {
     var p = parseFloat($('#al_p').value), op = $('#al_op').value;
     if (!(p > 0)) return;
-    workerPost('/api/alerts', { action: 'add', gift: S.cp.alertName, price: p, op: op })
+    workerPost('/api/alerts', S.cp.alertCoin ? { action: 'add', kind: 'coin', coinId: S.cp.alertCoin.id, name: S.cp.alertCoin.name, symbol: S.cp.alertCoin.symbol, price: p, op: op } : { action: 'add', gift: S.cp.alertName, price: p, op: op })
       .then(function (r) { closeModal(); toast(r && r.ok ? t('alert_ok') : t('alert_fail')); });
   },
   expshare: function () { try { navigator.share({ files: [S.expFile], title: CONFIG.BRAND }); } catch (e) {} },
