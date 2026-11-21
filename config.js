@@ -5,5 +5,5 @@ window.CONFIG = {
   // اسم البوت اللي هتعمله من BotFather (من غير @)
   BOT_USERNAME: "ARBTONGIFTS_BOT",
   // رابط الـ Worker (من Cloudflare) — يفعّل التنبيهات وإرسال الصور للشات. سيبه فاضي لو لسه.
-  WORKER_URL: ""
+  WORKER_URL: "https://arbtonn.mustafaosmanelhakeem.workers.dev/"
 };
