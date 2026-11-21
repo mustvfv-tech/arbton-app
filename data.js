@@ -555,6 +555,7 @@
       return urls.map(function (u) { return thumb(u, 320, 'png'); });
     },
     // ---- شارت الهدايا الحقيقي: مبيعات فعلية + فلور الأسواق (لقطات كل 30 دقيقة) ----
+    json: function (p) { return dataGet(p); },
     hist: function (g) { return dataGet('h/' + norm(g.official || g.name) + '.json'); },
     sales: function (g) { return dataGet('sales/' + norm(g.official || g.name) + '.json'); },
     series: async function (g, o) {
