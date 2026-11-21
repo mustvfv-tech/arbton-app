@@ -1219,11 +1219,11 @@ function intro() {
   var src = CONFIG.INTRO; if (!src) return;
   try { if (sessionStorage.getItem('intro_seen')) return; } catch (e) {}
   var box = document.createElement('div'); box.id = 'intro';
-  box.innerHTML = '<video muted playsinline webkit-playsinline autoplay preload="auto"></video><button type="button" id="introskip">' + t('skip') + '</button>';
+  box.innerHTML = '<video muted playsinline webkit-playsinline autoplay preload="auto"></video>';
   var v = box.querySelector('video'), done = false;
   function close() { if (done) return; done = true; try { sessionStorage.setItem('intro_seen', '1'); } catch (e) {} box.classList.add('out'); setTimeout(function () { box.remove(); }, 350); }
   v.addEventListener('error', function () { done = true; box.remove(); });
-  v.addEventListener('ended', close); box.addEventListener('click', close);
+  v.addEventListener('ended', close);
   v.addEventListener('playing', function () { box.classList.add('on'); });
   setTimeout(function () { if (!box.classList.contains('on')) { done = true; box.remove(); } }, 4000); // ما بدأش في 4 ثواني: نتجاهله
   setTimeout(close, 12000);
