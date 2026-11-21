@@ -74,3 +74,20 @@ for (const name of names) {
 }
 console.log(`done: ok=${ok} fail=${fail} new=${newSales}`);
 if (fail > names.length * 0.3) process.exit(1);
+
+// ملخص "توب" آخر 24 ساعة (أكتر هدية وأكتر موديل مبيعًا) — بيقراه البوت
+try {
+  const since = now - 86400, gifts = [], models = {};
+  for (const f of fs.readdirSync(OUT + "/sales")) {
+    const d = readJSON(OUT + "/sales/" + f, null); if (!d || !d.s) continue;
+    let c = 0, v = 0;
+    for (const r of d.s) {
+      if (r[0] < since) continue; c++; v += r[1];
+      if (r[4]) { const k = d.n + "|" + r[4], m = (models[k] ||= { n: d.n, m: r[4], c: 0, v: 0 }); m.c++; m.v += r[1]; }
+    }
+    if (c) gifts.push({ n: d.n, c, v: Math.round(v * 100) / 100 });
+  }
+  const by = (a, b) => b.c - a.c || b.v - a.v;
+  fs.writeFileSync(OUT + "/top.json", JSON.stringify({ u: now, gifts: gifts.sort(by).slice(0, 10), models: Object.values(models).sort(by).slice(0, 10).map(m => ({ ...m, v: Math.round(m.v * 100) / 100 })) }));
+  console.log("top.json written");
+} catch (e) { console.log("top skip", e.message); }
