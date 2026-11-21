@@ -43,6 +43,7 @@ var t = function (k) { return (I18N[S.lang] && I18N[S.lang][k]) || I18N.en[k] ||
 /* ---------- icons ---------- */
 var I = function (p) { return '<svg viewBox="0 0 24 24">' + p + '</svg>'; };
 var ICON = {
+  bell: '<svg viewBox="0 0 24 24"><path d="M6 17h12l-1.5-2V10a4.5 4.5 0 0 0-9 0v5L6 17zM10 20h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   gifts: I('<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v8h14v-8M12 8v12M12 8C10 3.5 6 4.5 7 7.5 7.5 9 10 8 12 8zm0 0c2-4.5 6-3.5 5-.5-.5 1.5-3 .5-5 .5z"/>'),
   profile: I('<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>'),
   settings: I('<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>'),
@@ -176,6 +177,14 @@ function render() {
 }
 
 /* ---------- modal helpers ---------- */
+
+function workerOn() { return !!(CONFIG.WORKER_URL && window.Telegram && Telegram.WebApp && Telegram.WebApp.initData); }
+function workerPost(path, body) {
+  body.initData = Telegram.WebApp.initData;
+  return fetch(CONFIG.WORKER_URL.replace(/\/$/, '') + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+    .then(function (r) { return r.json(); }).catch(function () { return { ok: false }; });
+}
+function toast(msg) { try { Telegram.WebApp.showAlert(msg); } catch (e) { alert(msg); } }
 function modal(html) { var m = $('#modal'); m.innerHTML = '<div class="sheet">' + html + '</div>'; m.classList.remove('hidden'); }
 function closeModal() { var m = $('#modal'); m.classList.add('hidden'); m.innerHTML = ''; }
 var SHEET_FN = [];
@@ -247,6 +256,7 @@ function chartPage(cfg) {
     (cfg.models ? '<button class="chip" data-act="cpmodels">' + t('models') + '</button>' : '') +
     '<button class="ib" data-act="share">' + ICON.share + '</button>' +
     '<button class="ib" data-act="dl">' + ICON.dl + '</button>' +
+    (cfg.alertName && workerOn() ? '<button class="ib" data-act="palert">' + ICON.bell + '</button>' : '') +
     (cfg.isFav ? '<button class="ib ' + (fav ? 'on' : '') + '" id="favbtn" data-act="fav">' + (fav ? ICON.heartF : ICON.heart) + '</button>' : '') +
     '</div>' +
     '<div class="tabs2"><button class="on" data-act="cptab" data-v="price">' + t('price') + '</button>' +
@@ -685,7 +695,7 @@ function giftChartCfg(g, o) {
     note: function (st) { return st.mode === 'floor' ? (o.isModel ? t('model_floor_note') : t('floor_note')) : st.mode === 'frag' ? t('daily_note') : ''; },
     extra: [{ id: 'sales', label: t('tab_sales'), render: renderSalesTab(g, o.model) }, { id: 'vol', label: t('tab_volume'), render: renderVolTab(g, o.model) }],
     isFav: function () { return S.favG.indexOf(g.id) >= 0; }, toggleFav: function () { toggle(S.favG, g.id, 'favG'); },
-    models: !o.isModel, gid: g.id, shareText: o.name + (o.floor != null ? ' — ' + nf(o.floor, 2) + ' TON' : ''), overview: o.ov
+    alertName: g.name, models: !o.isModel, gid: g.id, shareText: o.name + (o.floor != null ? ' — ' + nf(o.floor, 2) + ' TON' : ''), overview: o.ov
   };
 }
 function vGift(tok) {
@@ -919,6 +929,28 @@ var A = {
     var a = document.createElement('a'); a.href = S.expUrl; a.download = S.expName || 'arbton.png';
     document.body.appendChild(a); a.click(); a.remove();
   },
+  expsend: function () {
+    var b = S.expBlob; if (!b) return;
+    var rd = new FileReader();
+    rd.onload = function () {
+      workerPost('/api/photo', { image: rd.result, caption: '@' + CONFIG.BRAND + (S.expName ? ' · ' + S.expName.replace(/\.png$/, '') : '') })
+        .then(function (r) { toast(r && r.ok ? t('sent_ok') : t('send_fail')); });
+    };
+    rd.readAsDataURL(b);
+  },
+  palert: function () {
+    var name = S.cp && S.cp.alertName; if (!name) return;
+    modal('<h3>' + t('alert_title') + ' · ' + esc(name) + '</h3>' +
+      '<div class="frow"><select id="al_op"><option value="<=">' + t('alert_below') + '</option><option value=">=">' + t('alert_above') + '</option></select></div>' +
+      '<div class="frow"><label>' + t('alert_price') + '</label><input id="al_p" type="number" inputmode="decimal" min="0" step="any"></div>' +
+      '<div class="btns"><button class="btn ghost" data-act="mclose">' + t('done') + '</button><button class="btn" data-act="alertsave">' + t('alert_save') + '</button></div>');
+  },
+  alertsave: function () {
+    var p = parseFloat($('#al_p').value), op = $('#al_op').value;
+    if (!(p > 0)) return;
+    workerPost('/api/alerts', { action: 'add', gift: S.cp.alertName, price: p, op: op })
+      .then(function (r) { closeModal(); toast(r && r.ok ? t('alert_ok') : t('alert_fail')); });
+  },
   expshare: function () { try { navigator.share({ files: [S.expFile], title: CONFIG.BRAND }); } catch (e) {} },
   cpmode: function (v) { S.cpState.mode = v; paintCP(); },
   cpmkt: function (v) { S.cpState.market = v; S.cpState.sn = 40; paintCP(); },
@@ -1060,10 +1092,11 @@ function showImage(canvas, fname) {
     if (!b) return modal('<h3>' + t('error') + '</h3><div class="btns"><button class="btn ghost" data-act="mclose">' + t('done') + '</button></div>');
     var url = URL.createObjectURL(b), file = null;
     try { file = new File([b], fname, { type: 'image/png' }); } catch (e) {}
-    S.expFile = file; S.expUrl = url; S.expName = fname;
+    S.expFile = file; S.expUrl = url; S.expName = fname; S.expBlob = b;
     modal('<img class="exp" src="' + url + '" alt=""><div class="note" style="text-align:center">' + t('long_press') + '</div>' +
       '<div class="btns"><button class="btn ghost" data-act="mclose">' + t('done') + '</button>' +
       (file && navigator.canShare && navigator.canShare({ files: [file] }) ? '<button class="btn ghost" data-act="expshare">' + t('share_img') + '</button>' : '') +
+      (workerOn() ? '<button class="btn ghost" data-act="expsend">' + t('send_chat') + '</button>' : '') +
       '<button class="btn" data-act="expsave">' + t('save_img') + '</button></div>');
   }, 'image/png');
 }
