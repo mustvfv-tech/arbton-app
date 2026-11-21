@@ -273,6 +273,10 @@ function cpCtl(noModes) {
   if (cfg.markets && !(cfg.hideMkt || ['frag']).includes(noModes ? '' : st.mode)) {
     h += '<div class="chips">' + MKT.map(function (m) { return '<button class="chip2 ' + (st.market === m ? 'on' : '') + '" data-act="cpmkt" data-v="' + m + '">' + esc(mktName(m)) + '</button>'; }).join('') + '</div>';
   }
+  if (!noModes && cfg.curToggle) {
+    h += '<div class="chips"><button class="chip2 ' + (st.cur !== 'usd' ? 'on' : '') + '" data-act="cpcur" data-v="gem">' + GEM + ' TON</button><button class="chip2 ' + (st.cur === 'usd' ? 'on' : '') + '" data-act="cpcur" data-v="usd">$USDT</button>' +
+      '<span class="gapx"></span><button class="chip2 ' + (st.style !== 'line' ? 'on' : '') + '" data-act="cpstyle" data-v="candle">' + t('candles') + '</button><button class="chip2 ' + (st.style === 'line' ? 'on' : '') + '" data-act="cpstyle" data-v="line">' + t('line') + '</button></div>';
+  }
   return h;
 }
 function paintCP() {
@@ -301,8 +305,12 @@ function drawCP() {
   box.innerHTML = loadingBox();
   S.cp.fetch(S.cpState.tf, S.cpState).then(function (data) {
     if (tok !== S.ctok || !$('#chart')) return;
+    if ((!data || !data.length) && S.cp.autoFallback && !S.cpState.userMode && S.cpState.mode === 'floor' && S.cp.modes.indexOf('sales') >= 0) { // لسه مفيش تاريخ فلور: نعرض المبيعات
+      S.cpState.mode = 'sales'; S.cpState.tf = '1d'; paintCP(); return;
+    }
+    if (data && data.length && S.cp.curToggle && S.cpState.cur === 'usd') data = data.map(function (p) { var r = {}; for (var k in p) r[k] = p[k]; ['open', 'high', 'low', 'close', 'value'].forEach(function (f) { if (typeof r[f] === 'number') r[f] *= Gifts.tonUsd; }); return r; });
     if ((!data || !data.length) && S.cp.emptyMsg) { S.lastData = null; $('#chart').innerHTML = '<div class="empty">' + esc(S.cp.emptyMsg(S.cpState)) + '</div>'; return; }
-    makeChart($('#chart'), data, S.cp.forceStyle);
+    makeChart($('#chart'), data, S.cpState.style === 'line' ? 'area' : S.cp.forceStyle);
   }).catch(function () {
     if (tok === S.ctok && $('#chart')) $('#chart').innerHTML = errBox('retrychart');
   });
@@ -562,7 +570,8 @@ function treemapHtml(items, W, H) {
       (n.showChg ? '<i style="font-size:' + n.pfs.toFixed(1) + 'px">' + (c > 0 ? '+' : '') + c.toFixed(2) + '%</i>' : '') + '</div>';
   }).join('');
 }
-var FOOT = 28; // شريط تحت الخريطة فيه @ARBTON (عشان ما يغطيش أي مربع)
+var FOOT = 0; // @ARBTON بيتحط فوق أكبر مربع زي المرجع (من غير شريط منفصل)
+function tmMark() { return null; } // العلامة أسفل-يسار الخريطة (فوق أكبر مربع كانت بتغطي السعر)
 function mapHeight(n) { return Math.max(440, Math.round(window.innerHeight - 190)); }
 // أصغر ارتفاع بحيث كل مربع يتّسع للصورة + الاسم + النسبة. الخريطة بتتفرد بالارتفاع بدل ما تخبّي مربعات
 function tmFit(items, W, H0) {
@@ -581,7 +590,8 @@ function fillTreemap(items, title, total) {
   items.sort(function (a, b) { return b.value - a.value; });
   var W = tm.clientWidth, H = tmFit(items, W, mapHeight());
   tm.style.height = (H + FOOT) + 'px';
-  tm.innerHTML = treemapHtml(items, W, H) + '<div class="tmwm">@' + esc(CONFIG.BRAND) + '</div>';
+  var mk = tmMark(tmTiles(items, W, H));
+  tm.innerHTML = treemapHtml(items, W, H) + '<div class="tmwm" style="' + (mk ? 'left:' + mk.x.toFixed(0) + 'px;top:' + (mk.y - 22).toFixed(0) + 'px' : 'left:8px;bottom:4px') + '">@' + esc(CONFIG.BRAND) + '</div>';
   var cnt = $('#tmcount'); if (cnt) cnt.textContent = t('shown_count').replace('{n}', tm.querySelectorAll('.tile').length).replace('{m}', total);
   S.tmData = { items: items, W: W, H: H, title: title };
 }
@@ -683,10 +693,10 @@ function renderVolTab(g, model) {
   };
 }
 function giftChartCfg(g, o) {
-  var modes = ['sales', 'floor'].concat(!o.isModel && g.points && g.points.length > 1 ? ['frag'] : []);
+  var modes = ['floor', 'sales'].concat(!o.isModel && g.points && g.points.length > 1 ? ['frag'] : []);
   return {
     imgHtml: gImg(g, o.isModel ? o.model : null, 'lg sq'), title: o.name, price: o.floor != null ? gv(o.floor) : '—', chg: o.chg,
-    tfs: GTFS2, tf: '1d', fname: g.name + (o.isModel ? '-' + o.model : ''), modes: modes, mode: modes[0], markets: true,
+    tfs: GTFS2, tf: '2h', curToggle: true, autoFallback: true, fname: g.name + (o.isModel ? '-' + o.model : ''), modes: modes, mode: modes[0], markets: true,
     hideMkt: o.isModel ? ['floor', 'frag'] : ['frag'], ovAsync: o.ovAsync,
     priceTxt: o.floor != null ? (S.cur === 'gem' ? nf(o.floor, 2) + ' TON' : '$' + nf(o.floor * Gifts.tonUsd, 2)) : '',
     imgUrls: function () { return Gifts.exportImgs(g, o.isModel ? o.model : null); },
@@ -953,7 +963,9 @@ var A = {
       .then(function (r) { closeModal(); toast(r && r.ok ? t('alert_ok') : t('alert_fail')); });
   },
   expshare: function () { try { navigator.share({ files: [S.expFile], title: CONFIG.BRAND }); } catch (e) {} },
-  cpmode: function (v) { S.cpState.mode = v; paintCP(); },
+  cpmode: function (v) { S.cpState.mode = v; S.cpState.userMode = true; paintCP(); },
+  cpcur: function (v) { S.cpState.cur = v; paintCP(); },
+  cpstyle: function (v) { S.cpState.style = v; paintCP(); },
   cpmkt: function (v) { S.cpState.market = v; S.cpState.sn = 40; paintCP(); },
   smore: function () { S.cpState.sn = (S.cpState.sn || 40) + 40; paintCP(); },
   nft: function (v) { if (v) openTg('https://t.me/nft/' + encodeURIComponent(v)); },
@@ -1105,7 +1117,7 @@ function exportMap() {
   var d = S.tmData; if (!d) return;
   modal('<div class="loading">' + t('generating') + '</div>');
   var tiles = tmTiles(d.items, d.W, d.H);
-  var k = Math.min(1600 / d.W, 7600 / (d.H + FOOT)), head = Math.round(50 * k * 0.9), gap = Math.max(1.5, k * 0.8), foot = Math.round(FOOT * k);
+  var k = Math.min(1600 / d.W, 7600 / d.H), head = Math.round(50 * k * 0.9), gap = Math.max(1.5, k * 0.8), foot = 0;
   var W = Math.round(d.W * k), H = Math.round(d.H * k) + head + foot;
   Promise.all(tiles.map(function (n) { return n.showIcon ? iconFor(n) : Promise.resolve(null); })).then(function (imgs) {
     var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
@@ -1144,9 +1156,10 @@ function exportMap() {
       });
       c.restore();
     });
+    var mk = tmMark(tiles), mx = mk ? mk.x * k : 8 * k, my = mk ? head + mk.y * k - 11 * k : H - 12 * k;
     c.textAlign = 'left'; c.textBaseline = 'middle'; c.font = '800 ' + Math.round(15 * k) + 'px ' + FONT;
-    c.fillStyle = dark ? '#fff' : '#111';
-    c.fillText('@' + CONFIG.BRAND, 8 * k, H - foot / 2);
+    c.shadowColor = 'rgba(0,0,0,.55)'; c.shadowBlur = 4 * k; c.fillStyle = 'rgba(255,255,255,.92)';
+    c.fillText('@' + CONFIG.BRAND, mx, my); c.shadowBlur = 0;
     showImage(cv, CONFIG.BRAND + '-map.png');
   });
 }

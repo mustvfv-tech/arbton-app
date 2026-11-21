@@ -160,6 +160,7 @@ img{display:block}
 .dhead .grow{flex:0 0 100%;height:0;margin:0}
 .dhead .grow + *{margin-inline-start:auto}
 /* @ARBTON في شريط تحت الخريطة */
-.tmwm{left:10px;bottom:0;height:28px;line-height:28px;font-size:15px;color:var(--text);text-shadow:none}
+.tmwm{font-size:14px;opacity:.9;color:rgba(255,255,255,.92);text-shadow:0 1px 4px rgba(0,0,0,.6)}
+.gapx{flex:1}
 .tile{gap:1.5px;padding:1px;line-height:1.15}
 .tile b{max-width:98%}
