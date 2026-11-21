@@ -437,6 +437,14 @@
         if (L.rate) { G.tonUsd = L.rate; G.rateSrc = 'Baltic Assets'; }
         G.mk = L.mk;
         G._list = L.gifts;
+        try { // see.tg: المعروض/الإجمالي + تغير 7/30 يوم لكل مجموعة (ملف صغير بيتحدث كل 3 ساعات)
+          const sj = await dataGet('see.json');
+          if (sj && sj.cols) L.gifts.forEach(function (g) {
+            const c = sj.cols[norm(g.official || g.name)]; if (!c) return;
+            g.issued = c.i; g.total = c.t; g.c7 = c.c7; g.c30 = c.c30; g.seeF = c.f; g.seeMk = c.mk;
+            if (g.floor == null && c.f > 0) g.floor = c.f;
+          });
+        } catch (e) {}
       } catch (e) {
         G.mode = 'demo'; G.demo = true; G.hasSupply = true; G.source = '';
         G.err = String(e && e.message ? e.message : e);
@@ -503,6 +511,19 @@
           for (let i = h.t.length - 1; i >= 0; i--) {
             if (h.t[i] <= now - 23 * 3600 && a2[i] > 0) { if (h.t[i] >= now - 40 * 3600) m.change = Math.round((m.floor - a2[i]) / a2[i] * 10000) / 100; break; }
           }
+        });
+      }
+      // see.tg: أسعار النماذج الكاملة (أرخص عرض لكل نموذج من كل الأسواق) + الندرة + تغير 24س/7أيام
+      const sm = g ? await dataGet('see/m/' + norm(g.official || g.name) + '.json') : null;
+      if (sm && sm.m) {
+        const idx = {}; arr.forEach(function (m) { idx[m.name] = m; });
+        Object.keys(sm.m).forEach(function (n) {
+          const x = sm.m[n]; let m = idx[n];
+          if (!m) { m = { name: n, rarity: null, floor: null, change: null, listings: null }; arr.push(m); idx[n] = m; }
+          if (m.rarity == null && x.r != null) m.rarity = x.r;
+          m.c7 = x.c7; m.c30 = x.c30; m.actual = x.a;
+          if (!(m.floor > 0) && x.p > 0) { m.floor = x.p; m.best = x.m; m.mk = x.mk; m.live = true; m.src = 'see'; }
+          if (m.change == null && x.c1 != null) m.change = x.c1;
         });
       }
       arr.sort(function (a, b) { return (a.rarity == null ? 1e9 : a.rarity) - (b.rarity == null ? 1e9 : b.rarity); });

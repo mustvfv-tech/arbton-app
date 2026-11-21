@@ -865,10 +865,16 @@ function vGift(tok) {
           if (chg != null) ov.push([t('change24'), pill(chg)]);
         }
         if (rar != null) ov.push([t('rarity'), rar + '‰']);
+        if (mObj && mObj.c7 != null) ov.push(['7d', pill(mObj.c7)]);
+        if (mObj && mObj.c30 != null) ov.push(['30d', pill(mObj.c30)]);
+        if (mObj && mObj.actual != null) ov.push([t('rarity') + ' (census)', nf(mObj.actual, 1) + '‰']);
         if (lst != null) ov.push([t('listings'), nf(lst, 0)]);
         ov.push([t('collection'), esc(g.name)]);
       } else {
         if (g.sales != null) ov.push([t('recent_sales'), nf(g.sales, 0)]);
+        if (g.issued) ov.push([t('minted'), nf(g.issued, 0) + ' / ' + nf(g.total, 0)], [t('market_cap'), gvBig(g.floor * g.issued)]);
+        if (g.c7 != null) ov.push(['7d', pill(g.c7)]);
+        if (g.c30 != null) ov.push(['30d', pill(g.c30)]);
         if (Gifts.hasSupply) ov.push([t('minted'), nf(g.supply, 0)], [t('max_supply'), nf(g.maxSupply, 0)], [t('market_cap'), gvBig(g.floor * g.supply)]);
       }
       var mdl = isModel ? S.view.model : '';
@@ -1006,7 +1012,7 @@ function vSettings() {
     '<button class="promo" data-act="grp" style="background:linear-gradient(135deg,var(--card),#7c4a1b55)"><span class="si" style="background:#f97316">' + ICON.users + '</span><b>' + t('to_group') + '</b><small>' + t('to_group_sub') + '</small></button>' +
     '<button class="promo" data-act="chn" style="background:linear-gradient(135deg,var(--card),#1b3f7c55)"><span class="si" style="background:#3b82f6">' + ICON.mega + '</span><b>' + t('to_channel') + '</b><small>' + t('to_channel_sub') + '</small></button></div>' +
     '<div style="text-align:center;margin-top:10px"><button class="chip" data-act="diag">' + t('diagnostics') + '</button></div>' +
-    '<div class="attr">' + t('data_credit') + ': TG Gifts (tggifts.com) · Baltic Assets (balticassets.eu) — CC BY 4.0<br>' + t('prices_src') + ': Gift Satellite (@gift_satellite_app)<br>' + t('images_credit') + ': <a href="#" data-act="credit" style="color:var(--accent)">@GiftChanges</a> · wsrv.nl<br>Charts: TradingView Lightweight Charts™ · Crypto: CoinGecko, Binance · ' + esc(CONFIG.BRAND) + ' v' + esc(CONFIG.VERSION) + '</div>';
+    '<div class="attr">Data: <a href="https://see.tg" style="color:var(--accent)">see.tg</a><br>' + t('data_credit') + ': TG Gifts (tggifts.com) · Baltic Assets (balticassets.eu) — CC BY 4.0<br>' + t('prices_src') + ': Gift Satellite (@gift_satellite_app)<br>' + t('images_credit') + ': <a href="#" data-act="credit" style="color:var(--accent)">@GiftChanges</a> · wsrv.nl<br>Charts: TradingView Lightweight Charts™ · Crypto: CoinGecko, Binance · ' + esc(CONFIG.BRAND) + ' v' + esc(CONFIG.VERSION) + '</div>';
 }
 
 /* ---------- actions ---------- */
