@@ -70,19 +70,72 @@ async function ton(c, prev) {
   return { name: md.name || c.id, img: md.image || "", cur: "TON", floor: isFinite(floor) ? floor : null, supply: num(info.next_item_index), owners: owners.size || null, listings: Object.values(listed).filter(v => !v._pending).length,
     url: "https://getgems.io/collection/" + c.address, _sales: sales, _ls: listed };
 }
+// ---------- GetGems Public API (TON): كل استيكرات تيليجرام + المبيعات الحقيقية ----------
+const GGK = process.env.GETGEMS_KEY || "", GG = "https://api.getgems.io/public-api";
+let ggAuth = null;
+async function gg(path) {
+  const tries = ggAuth != null ? [ggAuth] : [GGK, "Bearer " + GGK];
+  for (const a of tries) {
+    for (let i = 0; i < 2; i++) {
+      const r = await fetch(GG + path, { headers: { accept: "application/json", authorization: a } });
+      if (r.status === 429) { await sleep(8000); continue; }
+      if (r.status === 401 || r.status === 403) break;
+      if (!r.ok) { console.log("GG HTTP", r.status, path.slice(0, 70)); return null; }
+      ggAuth = a; const j = await r.json(); return j && j.success === false ? null : j && (j.response ?? j);
+    }
+  }
+  console.log("GG auth failed — تأكد من GETGEMS_KEY"); return null;
+}
+const ggSalesBy = {}; // collectionAddress -> rows
+async function ggSales(sinceTs) {
+  let after = "", n = 0;
+  for (let pg = 0; pg < 40; pg++) {
+    const j = await gg(`/v1/nfts/history/stickers?types=sold&limit=100&minTime=${sinceTs}${after ? "&after=" + encodeURIComponent(after) : ""}`); await sleep(800);
+    const its = (j && j.items) || []; if (!its.length) break;
+    for (const it of its) {
+      const td = it.typeData || {}; if (td.type && td.type !== "sold") continue;
+      const price = num(td.price) ?? (num(td.priceNano) != null ? num(td.priceNano) / 1e9 : null); if (price == null || (td.currency && !/^ton$/i.test(td.currency))) continue;
+      (ggSalesBy[it.collectionAddress] ||= []).push([it.timestamp || Math.floor(Date.parse(it.time) / 1000), price, it.address, it.name || "", it.hash || ""]); n++;
+    }
+    after = j.cursor; if (!after) break;
+  }
+  console.log("getgems sticker sales:", n);
+}
+async function tonGG(c) {
+  const st = await gg(`/v1/collection/stats/${c.address}`); await sleep(800);
+  const x = Array.isArray(st) ? st[0] : st; if (!x) return null;
+  return { name: c.name || c.id, img: c.image || "", cur: "TON", floor: num(x.floorPrice) ?? (num(x.floorPriceNano) != null ? num(x.floorPriceNano) / 1e9 : null), supply: num(x.itemsCount), owners: num(x.holders),
+    volAll: num(x.totalVolumeSold) ?? (num(x.totalVolumeSoldNano) != null ? num(x.totalVolumeSoldNano) / 1e9 : null), url: "https://getgems.io/collection/" + c.address, _sales: ggSalesBy[c.address] || [], _gg: true };
+}
+if (GGK && cfg.discover && cfg.discover.getgems) {
+  let after = "", have = new Set(cfg.collections.filter(c => c.chain === "ton" && c.address).map(c => c.address)), found = 0;
+  for (let pg = 0; pg < 20; pg++) {
+    const j = await gg(`/v1/stickers/collections?limit=100${after ? "&after=" + encodeURIComponent(after) : ""}`); await sleep(800);
+    const its = (j && j.items) || []; if (!its.length) break;
+    for (const x of its) if (x.address && !have.has(x.address)) { have.add(x.address); cfg.collections.push({ id: x.address.slice(0, 12), chain: "ton", address: x.address, name: x.name, image: (x.imageSizes && x.imageSizes["352"]) || x.image }); found++; }
+    after = j.cursor; if (!after) break;
+  }
+  console.log("getgems discovery: found", found);
+  const first = !fs.existsSync(OUT + "/stickers.json");
+  await ggSales(first ? now - 7 * 86400 : now - 2 * 86400);
+}
 const items = [];
 // ممكن تكتب رابط بس: { "url": "https://getgems.io/collection/EQ..." } أو { "url": "https://opensea.io/collection/slug" }
-// اكتشاف تلقائي لمجموعات OpenSea اللي اسمها فيه "sticker" (بيفحص أكبر المجموعات على Ethereum حسب القيمة السوقية)
+// اكتشاف تلقائي لمجموعات OpenSea اللي اسمها فيه "sticker": بنفحص القوائم بأكتر من ترتيب (قيمة سوقية، حجم 7 أيام، حجم يوم، الأحدث)
 if (cfg.discover && cfg.discover.opensea) {
   const H = { "x-api-key": await osKey() }, have = new Set(cfg.collections.map(c => c.slug).filter(Boolean)), re = new RegExp(cfg.discover.match || "sticker", "i");
-  let next = "", found = 0;
-  for (let pg = 0; pg < (cfg.discover.pages || 20); pg++) {
-    const j = await get(`https://api.opensea.io/api/v2/collections?chain=ethereum&order_by=market_cap&limit=100${next ? "&next=" + encodeURIComponent(next) : ""}`, H); await sleep(700);
-    const list = (j && j.collections) || []; if (!list.length) break;
-    for (const x of list) { const slug = x.collection || x.slug; if (slug && !have.has(slug) && (re.test(slug) || re.test(x.name || ""))) { have.add(slug); cfg.collections.push({ id: slug, chain: "eth", slug }); found++; } }
-    next = j.next; if (!next) break;
+  let found = 0, scanned = 0; const sample = [];
+  for (const ord of cfg.discover.orders || ["market_cap", "seven_day_volume", "one_day_volume", "created_date"]) {
+    let next = "";
+    for (let pg = 0; pg < (cfg.discover.pages || 20); pg++) {
+      const j = await get(`https://api.opensea.io/api/v2/collections?chain=ethereum&order_by=${ord}&limit=100${next ? "&next=" + encodeURIComponent(next) : ""}`, H); await sleep(700);
+      const list = (j && j.collections) || []; if (!list.length) { if (pg === 0) console.log("empty list for", ord, j ? Object.keys(j).join(",") : "null"); break; }
+      scanned += list.length; if (sample.length < 5) sample.push(list[0].collection || list[0].slug);
+      for (const x of list) { const slug = x.collection || x.slug; if (slug && !have.has(slug) && (re.test(slug) || re.test(x.name || ""))) { have.add(slug); cfg.collections.push({ id: slug, chain: "eth", slug }); found++; } }
+      next = j.next; if (!next) break;
+    }
   }
-  console.log("opensea discovery: found", found);
+  console.log("opensea discovery: scanned", scanned, "found", found, "sample:", sample.join(","));
 }
 for (const c of cfg.collections) {
   if (c.url) { let m = c.url.match(/getgems\.io\/collection\/(E[QU][\w-]{40,})/); if (m) { c.chain = "ton"; c.address = m[1]; } else if ((m = c.url.match(/opensea\.io\/collection\/([\w-]+)/))) { c.chain = "eth"; c.slug = m[1]; } c.id = c.id || (c.address ? c.address.slice(0, 10) : c.slug); }
@@ -90,7 +143,7 @@ for (const c of cfg.collections) {
 for (const c of cfg.collections) {
   const file = sfile(c.id), prev = rd(file, { sales: [], snaps: [] });
   let r = null;
-  try { r = c.chain === "ton" ? await ton(c, prev) : await eth(c); } catch (e) { console.log("ERR", c.id, e.message); }
+  try { r = c.chain === "ton" ? (GGK ? await tonGG(c) : await ton(c, prev)) : await eth(c); } catch (e) { console.log("ERR", c.id, e.message); }
   if (!r) continue;
   // دمج المبيعات (بدون تكرار) ولقطة سعر الحد الأدنى للشارت
   const seen = new Set(prev.sales.map(x => x[2] + "|" + (x[4] || x[0]))), sales = prev.sales.slice();
@@ -101,9 +154,9 @@ for (const c of cfg.collections) {
   fs.writeFileSync(file, JSON.stringify(st));
   // لو مفيش أرقام حجم من API (TON) بنحسبها من المبيعات المسجلة
   const dayVol = (s, from) => sales.filter(x => x[0] >= from).reduce((a, x) => a + x[1], 0), cnt = from => sales.filter(x => x[0] >= from).length;
-  if (r.vol1 == null) { r.vol1 = dayVol(0, now - 86400); r.sales1 = cnt(now - 86400); r.vol7 = dayVol(0, now - 7 * 86400); r.sales7 = cnt(now - 7 * 86400); r.vol30 = dayVol(0, now - 30 * 86400); r.sales30 = cnt(now - 30 * 86400); r.volAll = dayVol(0, 0); r.salesAll = sales.length; r.inferred = true; }
+  if (r.vol1 == null) { r.vol1 = dayVol(0, now - 86400); r.sales1 = cnt(now - 86400); r.vol7 = dayVol(0, now - 7 * 86400); r.sales7 = cnt(now - 7 * 86400); r.vol30 = dayVol(0, now - 30 * 86400); r.sales30 = cnt(now - 30 * 86400); r.volAll = r.volAll ?? dayVol(0, 0); r.salesAll = r.salesAll ?? sales.length; r.inferred = !r._gg; }
   const old = snaps.find(x => x[0] >= now - 86400), c1 = r.floor != null && old && old[1] > 0 ? (r.floor - old[1]) / old[1] * 100 : null;
-  delete r._sales; delete r._ls;
+  delete r._sales; delete r._ls; delete r._gg;
   items.push({ id: c.id, chain: c.chain, ...r, c1 });
 }
 if (items.length) fs.writeFileSync(OUT + "/stickers.json", JSON.stringify({ u: now, items }));
