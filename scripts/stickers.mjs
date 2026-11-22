@@ -71,6 +71,22 @@ async function ton(c, prev) {
     url: "https://getgems.io/collection/" + c.address, _sales: sales, _ls: listed };
 }
 const items = [];
+// ممكن تكتب رابط بس: { "url": "https://getgems.io/collection/EQ..." } أو { "url": "https://opensea.io/collection/slug" }
+// اكتشاف تلقائي لمجموعات OpenSea اللي اسمها فيه "sticker" (بيفحص أكبر المجموعات على Ethereum حسب القيمة السوقية)
+if (cfg.discover && cfg.discover.opensea) {
+  const H = { "x-api-key": await osKey() }, have = new Set(cfg.collections.map(c => c.slug).filter(Boolean)), re = new RegExp(cfg.discover.match || "sticker", "i");
+  let next = "", found = 0;
+  for (let pg = 0; pg < (cfg.discover.pages || 20); pg++) {
+    const j = await get(`https://api.opensea.io/api/v2/collections?chain=ethereum&order_by=market_cap&limit=100${next ? "&next=" + encodeURIComponent(next) : ""}`, H); await sleep(700);
+    const list = (j && j.collections) || []; if (!list.length) break;
+    for (const x of list) { const slug = x.collection || x.slug; if (slug && !have.has(slug) && (re.test(slug) || re.test(x.name || ""))) { have.add(slug); cfg.collections.push({ id: slug, chain: "eth", slug }); found++; } }
+    next = j.next; if (!next) break;
+  }
+  console.log("opensea discovery: found", found);
+}
+for (const c of cfg.collections) {
+  if (c.url) { let m = c.url.match(/getgems\.io\/collection\/(E[QU][\w-]{40,})/); if (m) { c.chain = "ton"; c.address = m[1]; } else if ((m = c.url.match(/opensea\.io\/collection\/([\w-]+)/))) { c.chain = "eth"; c.slug = m[1]; } c.id = c.id || (c.address ? c.address.slice(0, 10) : c.slug); }
+}
 for (const c of cfg.collections) {
   const file = sfile(c.id), prev = rd(file, { sales: [], snaps: [] });
   let r = null;
