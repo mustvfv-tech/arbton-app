@@ -32,9 +32,9 @@ async function eth(c) {
   const tot = (st && st.total) || {}, iv = {}; ((st && st.intervals) || []).forEach(x => { iv[x.interval] = x; });
   const sales = (ev && ev.asset_events || ev && ev.events || []).map(e => {
     const p = e.payment || {}, q = num(p.quantity), d = num(p.decimals);
-    return q != null && d != null && /^(eth|weth)$/i.test(p.symbol || "") ? [e.event_timestamp || e.closing_date, q / Math.pow(10, d), String((e.nft && e.nft.identifier) || ""), (e.nft && e.nft.name) || "", e.transaction || ""] : null;
+    return q != null && d != null && /^(eth|weth|ton)$/i.test(p.symbol || "") ? [e.event_timestamp || e.closing_date, q / Math.pow(10, d), String((e.nft && e.nft.identifier) || ""), (e.nft && e.nft.name) || "", e.transaction || ""] : null;
   }).filter(Boolean);
-  return { name: (info && info.name) || c.slug, img: (info && info.image_url) || "", cur: "ETH", floor: num(tot.floor_price), supply: num(info && info.total_supply), owners: num(tot.num_owners),
+  return { name: (info && info.name) || c.slug, img: (info && info.image_url) || "", cur: String(tot.floor_price_symbol || "ETH").toUpperCase().replace(/^WETH$/, "ETH"), floor: num(tot.floor_price), supply: num(info && info.total_supply), owners: num(tot.num_owners),
     volAll: num(tot.volume), salesAll: num(tot.sales), vol1: num(iv.one_day && iv.one_day.volume), sales1: num(iv.one_day && iv.one_day.sales), vol7: num(iv.seven_day && iv.seven_day.volume), sales7: num(iv.seven_day && iv.seven_day.sales),
     vol30: num(iv.thirty_day && iv.thirty_day.volume), sales30: num(iv.thirty_day && iv.thirty_day.sales), url: "https://opensea.io/collection/" + c.slug, _sales: sales };
 }
@@ -69,6 +69,21 @@ async function ton(c, prev) {
   const md = info.metadata || {};
   return { name: md.name || c.id, img: md.image || "", cur: "TON", floor: isFinite(floor) ? floor : null, supply: num(info.next_item_index), owners: owners.size || null, listings: Object.values(listed).filter(v => !v._pending).length,
     url: "https://getgems.io/collection/" + c.address, _sales: sales, _ls: listed };
+}
+// اكتشاف TON عبر TonAPI: بنفحص قايمة مجموعات TON بالدور ونفلتر بالاسم (تجريبي — الفحص محدود بعدد صفحات)
+if (cfg.discover && cfg.discover.tonapi) {
+  const H = process.env.TONAPI_KEY ? { authorization: "Bearer " + process.env.TONAPI_KEY } : {}, re = new RegExp(cfg.discover.match || "sticker", "i");
+  const have = new Set(cfg.collections.filter(c => c.address).map(c => c.address)); let scanned = 0, found = 0;
+  const start = Math.floor(((rd(OUT + "/stickers-scan.json", {}).off) || 0)), step = 1000, maxPages = cfg.discover.tonPages || 40;
+  let off = start;
+  for (let pg = 0; pg < maxPages && found < (cfg.discover.tonMax || 40); pg++) {
+    const j = await get(`https://tonapi.io/v2/nfts/collections?limit=${step}&offset=${off}`, H); await sleep(1200);
+    const list = (j && j.nft_collections) || []; if (!list.length) { off = 0; break; }
+    scanned += list.length; off += list.length;
+    for (const x of list) { const nm = x.metadata && x.metadata.name || ""; if (x.address && !have.has(x.address) && re.test(nm) && num(x.next_item_index) > 0) { have.add(x.address); cfg.collections.push({ id: x.address.slice(0, 12), chain: "ton", address: x.address, name: nm }); found++; } }
+  }
+  fs.writeFileSync(OUT + "/stickers-scan.json", JSON.stringify({ off }));
+  console.log("tonapi discovery: scanned", scanned, "from offset", start, "found", found);
 }
 // ---------- GetGems Public API (TON): كل استيكرات تيليجرام + المبيعات الحقيقية ----------
 const GGK = process.env.GETGEMS_KEY || "", GG = "https://api.getgems.io/public-api";
@@ -125,17 +140,17 @@ const items = [];
 if (cfg.discover && cfg.discover.opensea) {
   const H = { "x-api-key": await osKey() }, have = new Set(cfg.collections.map(c => c.slug).filter(Boolean)), re = new RegExp(cfg.discover.match || "sticker", "i");
   let found = 0, scanned = 0, topSeen = 0; const sample = [], topN = (cfg.discover.top || 0);
-  for (const ord of cfg.discover.orders || ["market_cap", "seven_day_volume", "one_day_volume", "created_date"]) {
+  for (const chain of cfg.discover.chains || ["ethereum"]) for (const ord of cfg.discover.orders || ["market_cap", "seven_day_volume", "one_day_volume", "created_date"]) {
     let next = "";
     for (let pg = 0; pg < (cfg.discover.pages || 20); pg++) {
-      const j = await get(`https://api.opensea.io/api/v2/collections?chain=ethereum&order_by=${ord}&limit=100${next ? "&next=" + encodeURIComponent(next) : ""}`, H); await sleep(700);
-      const list = (j && j.collections) || []; if (!list.length) { if (pg === 0) console.log("empty list for", ord, j ? Object.keys(j).join(",") : "null"); break; }
+      const j = await get(`https://api.opensea.io/api/v2/collections?chain=${chain}&order_by=${ord}&limit=100${next ? "&next=" + encodeURIComponent(next) : ""}`, H); await sleep(700);
+      const list = (j && j.collections) || []; if (!list.length) { if (pg === 0) console.log("empty list for", chain, ord, j ? Object.keys(j).join(",") : "null"); break; }
       scanned += list.length; if (sample.length < 5) sample.push(list[0].collection || list[0].slug);
-      for (const x of list) { const slug = x.collection || x.slug; const inTop = ord === "market_cap" && topN > 0 && topSeen++ < topN; if (slug && !have.has(slug) && (inTop || re.test(slug) || re.test(x.name || ""))) { have.add(slug); cfg.collections.push({ id: slug, chain: "eth", slug }); found++; } }
+      for (const x of list) { const slug = x.collection || x.slug; const inTop = chain === "ethereum" && ord === "market_cap" && topN > 0 && topSeen++ < topN; if (slug && !have.has(slug) && (inTop || re.test(slug) || re.test(x.name || ""))) { have.add(slug); cfg.collections.push({ id: slug, chain: chain === "ton" ? "ton" : "eth", slug, os: true }); found++; } }
       next = j.next; if (!next) break;
     }
   }
-  console.log("opensea discovery: scanned", scanned, "found", found, "sample:", sample.join(","));
+  console.log("opensea discovery (" + (cfg.discover.chains || ["ethereum"]).join("+") + "): scanned", scanned, "found", found, "sample:", sample.join(","));
 }
 for (const c of cfg.collections) {
   if (c.url) { let m = c.url.match(/getgems\.io\/collection\/(E[QU][\w-]{40,})/); if (m) { c.chain = "ton"; c.address = m[1]; } else if ((m = c.url.match(/opensea\.io\/collection\/([\w-]+)/))) { c.chain = "eth"; c.slug = m[1]; } c.id = c.id || (c.address ? c.address.slice(0, 10) : c.slug); }
@@ -143,7 +158,7 @@ for (const c of cfg.collections) {
 for (const c of cfg.collections) {
   const file = sfile(c.id), prev = rd(file, { sales: [], snaps: [] });
   let r = null;
-  try { r = c.chain === "ton" ? (GGK ? await tonGG(c) : await ton(c, prev)) : await eth(c); } catch (e) { console.log("ERR", c.id, e.message); }
+  try { r = c.os || c.chain !== "ton" ? await eth(c) : (GGK ? await tonGG(c) : await ton(c, prev)); } catch (e) { console.log("ERR", c.id, e.message); }
   if (!r) continue;
   // دمج المبيعات (بدون تكرار) ولقطة سعر الحد الأدنى للشارت
   const seen = new Set(prev.sales.map(x => x[2] + "|" + (x[4] || x[0]))), sales = prev.sales.slice();
