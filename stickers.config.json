@@ -1,8 +1,25 @@
 {
-  "_help": "ضيف أو شيل مجموعات. ETH: slug من رابط OpenSea (opensea.io/collection/<slug>). TON: عنوان المجموعة من رابط GetGems (getgems.io/collection/<EQ...>). السطرين الأولانيين أمثلة لازم تتأكد إنهم الاستيكرات اللي عايزها.",
-  "collections": [
-    { "id": "cryptoskulls-stickers", "chain": "eth", "slug": "cryptoskulls-stickers" },
-    { "id": "ministickers", "chain": "eth", "slug": "ministickers" },
-    { "id": "stickaverse", "chain": "eth", "slug": "stickaverse" }
-  ]
+ "_help": "ضيف مجموعة بسطر: { \"url\": \"رابط GetGems أو OpenSea\" }. و discover بيدوّر لوحده على OpenSea.",
+ "discover": {
+  "opensea": true,
+  "match": "sticker",
+  "pages": 20
+ },
+ "collections": [
+  {
+   "id": "tg-animated-stickers",
+   "chain": "ton",
+   "address": "EQD6ZRbU0IFF8ou64Ljfo9FSx9BWVNdokCjdwQ98nGnkyjwD"
+  },
+  {
+   "id": "tg-nft-collection",
+   "chain": "ton",
+   "address": "EQBNaiqGGMYWCWwetePCVgCBL5XmuH3SuBuLp_W9e1yGpv6k"
+  },
+  {
+   "id": "cryptoskulls-stickers",
+   "chain": "eth",
+   "slug": "cryptoskulls-stickers"
+  }
+ ]
 }
