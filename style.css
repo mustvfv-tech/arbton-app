@@ -30,8 +30,8 @@ img{display:block}
 .tabs button.on{color:var(--text);box-shadow:inset 0 -2px 0 var(--accent);border-radius:0}
 .tabs svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .bar{display:flex;gap:8px;align-items:center;margin:4px 0 8px}
-.search{flex:1;display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:0 12px;height:44px}
-.search input{flex:1;background:none;border:0;outline:0;min-width:0}
+.search{flex:1;min-width:0;display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:0 12px;height:44px}
+.search input{flex:1;background:none;border:0;outline:0;min-width:0;width:100%}
 .search svg,.ib svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .ib{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--card);border:1px solid var(--line);flex:none}
 .ib.on{color:var(--down)}
@@ -183,3 +183,4 @@ img{display:block}
 .bar2 span,.bar2 b{position:relative}
 .row .pr .sub{text-align:end}
 #mstat .sum{margin-top:0}
+.bar .ib{flex:none}

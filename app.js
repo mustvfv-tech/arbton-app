@@ -32,9 +32,10 @@ var S = {
   mcur: store.get('mcur', ''), // عملة عرض الخريطة (TON/$)، فاضي = زي إعدادات العملة
   cs: store.get('cs', 'candles'),
   alerts: store.get('alerts', { portfolio: false, pumps: false }),
-  favC: store.get('favC', []), favG: store.get('favG', []),
+  favC: store.get('favC', []), favG: store.get('favG', []), favS: store.get('favS', []),
+  st: { tab: 'all', q: '', map: false, metric: 'cap', top: 50 },
   prof: store.get('prof', { items: [], cols: [] }),
-  c: { tab: 'all', q: '', key: 'cap', asc: false, grid: false, map: false, metric: 'cap', top: 50 },
+  c: { kind: 'coin', tab: 'all', q: '', key: 'cap', asc: false, grid: false, map: false, metric: 'cap', top: 50 },
   g: { tab: 'all', q: '', map: false, metric: 'cap', top: 50 },
   p: { tab: 'assets', edit: false },
   csOpen: false, cp: null, cpState: null,
@@ -46,6 +47,7 @@ var t = function (k) { return (I18N[S.lang] && I18N[S.lang][k]) || I18N.en[k] ||
 /* ---------- icons ---------- */
 var I = function (p) { return '<svg viewBox="0 0 24 24">' + p + '</svg>'; };
 var ICON = {
+  sticker: '<svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9l-6 6H6a2 2 0 0 1-2-2z"/><path d="M14 20v-4a2 2 0 0 1 2-2h4"/><circle cx="9" cy="9" r="1"/><circle cx="14" cy="9" r="1"/><path d="M8.5 13c1 1 3 1 4 0"/></svg>',
   bell: '<svg viewBox="0 0 24 24"><path d="M6 17h12l-1.5-2V10a4.5 4.5 0 0 0-9 0v5L6 17zM10 20h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   gifts: I('<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v8h14v-8M12 8v12M12 8C10 3.5 6 4.5 7 7.5 7.5 9 10 8 12 8zm0 0c2-4.5 6-3.5 5-.5-.5 1.5-3 .5-5 .5z"/>'),
   profile: I('<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>'),
@@ -157,7 +159,7 @@ function setTab(v) { S.hist = []; S.view = null; S.tab = v; render(); }
 function renderNav() {
   var initial = (U.first_name || 'U').charAt(0).toUpperCase();
   var av = U.photo_url ? '<img class="navav" src="' + esc(U.photo_url) + '">' : '<span class="navav">' + esc(initial) + '</span>';
-  var items = [['crypto', '<span class="bt">₿</span>', t('crypto')], ['gifts', ICON.gifts, t('gifts')], ['profile', av, t('profile')], ['settings', ICON.settings, t('settings')]];
+  var items = [['crypto', '<span class="bt">₿</span>', t('crypto')], ['gifts', ICON.gifts, t('gifts')], ['stickers', ICON.sticker, t('stickers')], ['profile', av, t('profile')], ['settings', ICON.settings, t('settings')]];
   $('#nav').innerHTML = items.map(function (x) {
     return '<button class="' + (S.tab === x[0] ? 'on' : '') + '" data-act="tab" data-v="' + x[0] + '">' + x[1] + '<span>' + x[2] + '</span></button>';
   }).join('');
@@ -178,10 +180,11 @@ function render() {
     window.scrollTo(0, 0);
     if (v.type === 'coin') return vCoin(tok);
     if (v.type === 'gift') return vGift(tok);
+    if (v.type === 'sticker') return vSticker(tok);
     if (v.type === 'models') return vModels(tok);
     if (v.type === 'portfolio') return vPortfolio(tok);
   }
-  ({ crypto: vCrypto, gifts: vGifts, profile: vProfile, settings: vSettings })[S.tab](tok);
+  ({ crypto: vCrypto, gifts: vGifts, stickers: vStickers, profile: vProfile, settings: vSettings })[S.tab](tok);
 }
 
 /* ---------- modal helpers ---------- */
@@ -245,6 +248,9 @@ function addSeries(chart, data, forced) {
   if (st === 'candles') {
     s = chart.addCandlestickSeries({ upColor: up, downColor: down, borderUpColor: up, borderDownColor: down, borderVisible: true, wickUpColor: up, wickDownColor: down });
     s.setData(data);
+  } else if (st === 'dots') {
+    s = chart.addLineSeries({ color: '#3b82f6', lineWidth: 2, pointMarkersVisible: true, pointMarkersRadius: 5, crosshairMarkerRadius: 6 });
+    s.setData(data.map(function (x) { return { time: x.time, value: x.close }; }));
   } else if (st === 'line') {
     s = chart.addLineSeries({ color: '#3b82f6', lineWidth: 3, crosshairMarkerRadius: 5 });
     s.setData(data.map(function (x) { return { time: x.time, value: x.close }; }));
@@ -343,7 +349,9 @@ function drawCP() {
     }
     if (data && data.length && S.cp.curToggle && S.cpState.cur === 'usd') data = data.map(function (p) { var r = {}; for (var k in p) r[k] = p[k]; ['open', 'high', 'low', 'close', 'value'].forEach(function (f) { if (typeof r[f] === 'number') r[f] *= Gifts.tonUsd; }); return r; });
     if ((!data || !data.length) && S.cp.emptyMsg) { S.lastData = null; $('#chart').innerHTML = '<div class="empty">' + esc(S.cp.emptyMsg(S.cpState)) + '</div>'; return; }
-    makeChart($('#chart'), data, S.cpState.style === 'line' ? 'area' : S.cp.forceStyle);
+    var sparse = data.length <= 15 && !S.cpState.style && (S.cp.curToggle || S.cp.sparse); // عمليات قليلة: نقط على خط أوضح من شموع مسطحة
+    makeChart($('#chart'), data, sparse ? 'dots' : S.cpState.style === 'line' ? 'area' : S.cp.forceStyle);
+    if (sparse) { var nt = $('#cpnote'); if (nt) { nt.style.display = ''; nt.textContent = t('few_pts').replace('{n}', data.length); } }
   }).catch(function () {
     if (tok === S.ctok && $('#chart')) $('#chart').innerHTML = errBox('retrychart');
   });
@@ -355,8 +363,35 @@ function setTon() {
   var ton = S.cache.coins && S.cache.coins.find(function (c) { return c.id === 'the-open-network'; });
   if (ton) Gifts.tonUsd = ton.current_price;
 }
+/* ---------- STOCKS (داخل صفحة الكريبتو) ---------- */
+function loadStocks() {
+  if (S.cache.stocks && Date.now() - (S.cache.stT || 0) < 300000) return Promise.resolve(S.cache.stocks);
+  return Gifts.json('stocks.json').then(function (j) {
+    if (!j || !j.items) throw 0;
+    S.cache.stU = j.u; S.cache.stT = Date.now();
+    S.cache.stocks = j.items.slice().sort(function (a, b) { return b.mc - a.mc; }).map(function (x, i) {
+      return { id: 's:' + x.s, stock: true, name: x.n, symbol: x.s, image: x.logo ? Gifts.thumb(x.logo, 128, 'png') : '', current_price: x.p, price_change_percentage_24h: x.c1,
+        market_cap: x.mc, market_cap_rank: i + 1, total_volume: x.v, high_24h: x.h, low_24h: x.l, ath: x.hi52, atl: x.lo52, ind: x.ind, circulating_supply: 0 };
+    });
+    return S.cache.stocks;
+  });
+}
+function curList() { return S.c.kind === 'stock' ? (S.cache.stocks || []) : (S.cache.coins || []); }
+function stockHist(sym) { return Gifts.json('stocks/h/' + sym.replace(/[^A-Z0-9]/g, '') + '.json'); }
+var STFS = ['1M', '3M', '6M', '1Y'];
+function stockCandles(sym, tf) {
+  return stockHist(sym).then(function (h) {
+    if (!h || !h.length) return [];
+    var days = { '1M': 31, '3M': 92, '6M': 183, '1Y': 366 }[tf] || 92, from = Date.now() / 1000 - days * 86400;
+    return h.filter(function (r) { return r[0] >= from; }).map(function (r) { return { time: r[0], open: r[1], high: r[2], low: r[3], close: r[4] }; });
+  });
+}
 function vCrypto(tok) {
   var el = $('#view');
+  if (S.c.kind === 'stock') {
+    el.innerHTML = loadingBox();
+    return loadStocks().then(function () { if (tok === S.tok) paintCrypto(); }).catch(function () { if (tok === S.tok) el.innerHTML = '<div class="empty"><p>' + t('stocks_wait') + '</p></div>'; });
+  }
   var fresh = S.cache.coins && Date.now() - S.cache.ct < 60000;
   if (fresh) return paintCrypto();
   el.innerHTML = loadingBox();
@@ -378,9 +413,12 @@ function paintCrypto() {
     sum = '<div class="sum"><div><small>' + t('market_cap') + '</small><b>$' + fmtBig(cap) + '</b>' + pill(pc).replace('class="pill', 'class="pill') + '</div>' +
       '<div><small>' + t('change24') + '</small><b class="' + (abs >= 0 ? 'up-t' : 'down-t') + '">' + (abs >= 0 ? '+' : '-') + '$' + fmtBig(Math.abs(abs)) + '</b></div></div>';
   }
+  var stock = S.c.kind === 'stock';
+  if (stock) sum = '';
   $('#view').innerHTML =
+    '<div class="mrow"><div class="seg" style="flex:1"><button class="' + (!stock ? 'on' : '') + '" data-act="ckind" data-v="coin" style="flex:1">' + t('coins') + '</button><button class="' + (stock ? 'on' : '') + '" data-act="ckind" data-v="stock" style="flex:1">' + t('stocks') + '</button></div></div>' +
     '<div class="tabs">' + tabs.map(function (x) { return '<button class="' + (c.tab === x[0] ? 'on' : '') + '" data-act="ctab" data-v="' + x[0] + '">' + x[1] + x[2] + '</button>'; }).join('') + '</div>' +
-    '<div class="bar"><label class="search">' + ICON.search + '<input id="q" value="' + esc(c.q) + '" placeholder="' + t('search_coins') + '"></label>' +
+    '<div class="bar"><label class="search">' + ICON.search + '<input id="q" value="' + esc(c.q) + '" placeholder="' + t(stock ? 'search_stocks' : 'search_coins') + '"></label>' +
     '<button class="ib" data-act="csort">' + ICON.sort + '</button>' +
     '<button class="ib ' + (!c.grid && !c.map ? 'act' : '') + '" data-act="cview" data-v="list">' + ICON.list + '</button>' +
     '<button class="ib ' + (c.grid && !c.map ? 'act' : '') + '" data-act="cview" data-v="grid">' + ICON.grid + '</button>' +
@@ -389,7 +427,7 @@ function paintCrypto() {
   paintCryptoList();
 }
 function coinList() {
-  var c = S.c, L = S.cache.coins.slice();
+  var c = S.c, L = curList().slice();
   if (c.q) L = L.filter(function (x) { return (x.name + ' ' + x.symbol).toLowerCase().indexOf(c.q.toLowerCase()) >= 0; });
   var ch = function (x) { return x.price_change_percentage_24h || 0; };
   if (c.tab === 'fav') L = L.filter(function (x) { return S.favC.indexOf(x.id) >= 0; });
@@ -406,8 +444,8 @@ function coinList() {
 function paintCryptoList() {
   var c = S.c, L = coinList(), box = $('#list');
   if (!box) return;
-  var addBtn = '<div class="empty" style="padding:16px"><button class="btn" data-act="addcoins">+ ' + t('add_coins') + '</button></div>';
-  if (c.tab === 'fav' && !L.length && !c.q) { box.innerHTML = '<div class="empty"><p>' + t('no_favs') + '</p><button class="btn" data-act="addcoins">+ ' + t('add_coins') + '</button></div>'; return; }
+  var addBtn = c.kind === 'stock' ? '' : '<div class="empty" style="padding:16px"><button class="btn" data-act="addcoins">+ ' + t('add_coins') + '</button></div>';
+  if (c.tab === 'fav' && !L.length && !c.q) { box.innerHTML = '<div class="empty"><p>' + t('no_favs') + '</p>' + (c.kind === 'stock' ? '' : '<button class="btn" data-act="addcoins">+ ' + t('add_coins') + '</button>') + '</div>'; return; }
   var html;
   if (c.map) return paintCoinMap(L, box);
   if (c.grid) {
@@ -419,8 +457,8 @@ function paintCryptoList() {
       return '<div class="row" data-act="coin" data-v="' + esc(x.id) + '"><img class="lg" src="' + esc(x.image) + '" loading="lazy"><div class="nm">' + esc(x.name) + '</div><div class="pr">$' + fmtPrice(x.current_price) + '</div>' + pill(x.price_change_percentage_24h) + '</div>';
     }).join('');
   }
-  box.innerHTML = html + (c.tab === 'fav' ? addBtn : '') + (c.q && c.q.length >= 2 && (c.tab === 'all' || c.tab === 'fav') ? '<div id="xs"></div>' : '');
-  if (c.q && c.q.length >= 2 && (c.tab === 'all' || c.tab === 'fav')) xSearch(c.q);
+  box.innerHTML = html + (c.tab === 'fav' ? addBtn : '') + (c.kind !== 'stock' && c.q && c.q.length >= 2 && (c.tab === 'all' || c.tab === 'fav') ? '<div id="xs"></div>' : '');
+  if (c.kind !== 'stock' && c.q && c.q.length >= 2 && (c.tab === 'all' || c.tab === 'fav')) xSearch(c.q);
 }
 // بحث بالاسم في كل العملات (أكتر من أول 100) عبر CoinGecko
 var xTimer = null, xTok = 0;
@@ -441,6 +479,7 @@ function xSearch(q) {
   }, 450);
 }
 function vCoin(tok) {
+  if (/^s:/.test(S.view.id)) return vStock(tok);
   var load = S.cache.coins ? Promise.resolve(S.cache.coins) : Crypto.markets().then(function (c) { S.cache.coins = c; S.cache.ct = Date.now(); return c; });
   $('#view').innerHTML = loadingBox();
   load.then(function (coins) {
@@ -460,6 +499,141 @@ function vCoin(tok) {
         [t('high24'), '$' + fmtPrice(c.high_24h)], [t('low24'), '$' + fmtPrice(c.low_24h)], [t('ath'), '$' + fmtPrice(c.ath)],
         [t('supply'), c.circulating_supply ? fmtBig(c.circulating_supply) + ' ' + c.symbol.toUpperCase() : '—']
       ]
+    });
+  }).catch(function () { if (tok === S.tok) $('#view').innerHTML = errBox(); });
+}
+
+function vStock(tok) {
+  $('#view').innerHTML = loadingBox();
+  loadStocks().then(function (list) {
+    if (tok !== S.tok) return;
+    var c = list.find(function (x) { return x.id === S.view.id; }); if (!c) return back();
+    chartPage({
+      img: c.image, title: c.name, price: '$' + fmtPrice(c.current_price), chg: c.price_change_percentage_24h,
+      priceTxt: '$' + fmtPrice(c.current_price), imgUrls: function () { return c.image ? [c.image] : []; }, subTxt: function () { return c.symbol + ' · USD'; },
+      tfs: STFS, tf: '3M', fname: c.symbol, note: t('stocks_note'),
+      fetch: function (tf) { return stockCandles(c.symbol, tf); },
+      isFav: function () { return S.favC.indexOf(c.id) >= 0; }, toggleFav: function () { toggle(S.favC, c.id, 'favC'); },
+      shareText: c.name + ' (' + c.symbol + ') — $' + fmtPrice(c.current_price),
+      overview: [
+        [t('rank'), '#' + c.market_cap_rank], [t('market_cap'), '$' + fmtBig(c.market_cap)], [t('volume'), c.total_volume ? '$' + fmtBig(c.total_volume) : '—'],
+        [t('day_high'), '$' + fmtPrice(c.high_24h)], [t('day_low'), '$' + fmtPrice(c.low_24h)], [t('wk52_high'), '$' + fmtPrice(c.ath)], [t('wk52_low'), '$' + fmtPrice(c.atl)],
+        [t('industry'), esc(c.ind || '—')]
+      ]
+    });
+  }).catch(function () { if (tok === S.tok) $('#view').innerHTML = errBox(); });
+}
+
+/* ---------- STICKERS (TON + Ethereum/OpenSea) ---------- */
+function loadStickers() {
+  var p = S.cache.stickers && Date.now() - (S.cache.skT || 0) < 300000 ? Promise.resolve(S.cache.stickers) : Gifts.json('stickers.json').then(function (j) {
+    if (!j || !j.items) throw 0; S.cache.skT = Date.now(); S.cache.stickers = j.items; return j.items;
+  });
+  var ep = S.cache.coins ? Promise.resolve() : Crypto.markets().then(function (c) { S.cache.coins = c; S.cache.ct = Date.now(); }).catch(function () {});
+  return Promise.all([p, ep]).then(function (r) { return r[0]; });
+}
+function ethUsd() { var e = S.cache.coins && S.cache.coins.find(function (c) { return c.id === 'ethereum'; }); return e ? e.current_price : 0; }
+function stRate(x) { return x.cur === 'ETH' ? ethUsd() : Gifts.tonUsd; }
+function stP(x, v) { return v == null ? '—' : (x.cur === 'ETH' ? 'Ξ ' + fmtPrice(v) : GEM + nf(v, 2)); }
+function stUsd(x, v) { var r = stRate(x); return v == null || !r ? '' : '$' + (v * r >= 100 ? nf(v * r, 0) : nf(v * r, 2)); }
+function stCap(x) { return x.floor != null && x.supply ? x.floor * x.supply * stRate(x) : 0; }
+function stSub(x) { return (x.chain === 'ton' ? 'TON' : 'Ethereum') + (x.supply ? ' · ' + nf(x.supply, 0) : ''); }
+function stImg(x, cls) { return x.img ? '<img class="' + (cls || 'lg') + '" src="' + esc(Gifts.thumb(x.img, 160, 'png')) + '" loading="lazy" alt="">' : '<span class="' + (cls || 'lg') + '"></span>'; }
+function vStickers(tok) {
+  var el = $('#view'); el.innerHTML = loadingBox();
+  loadStickers().then(function () { if (tok === S.tok) paintStickers(); }).catch(function () { if (tok === S.tok) el.innerHTML = '<div class="empty"><p>' + t('stickers_wait') + '</p></div>'; });
+}
+function paintStickers() {
+  var c = S.st, tabs = [['all', t('all')], ['ton', 'TON'], ['eth', 'Ethereum'], ['fav', t('favorites')], ['hot', t('hot')]];
+  $('#view').innerHTML = '<div class="tabs">' + tabs.map(function (x) { return '<button class="' + (c.tab === x[0] ? 'on' : '') + '" data-act="sttab" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+    '<div class="bar"><label class="search">' + ICON.search + '<input id="q" value="' + esc(c.q) + '" placeholder="' + t('search_stickers') + '"></label>' +
+    '<button class="ib ' + (!c.map ? 'act' : '') + '" data-act="stview" data-v="list">' + ICON.list + '</button>' +
+    '<button class="ib ' + (c.map ? 'act' : '') + '" data-act="stview" data-v="map">' + ICON.tmap + '</button></div><div id="list"></div>';
+  paintStickerList();
+}
+function stickerFiltered() {
+  var c = S.st, L = (S.cache.stickers || []).slice();
+  if (c.q) L = L.filter(function (x) { return x.name.toLowerCase().indexOf(c.q.toLowerCase()) >= 0; });
+  if (c.tab === 'ton' || c.tab === 'eth') L = L.filter(function (x) { return x.chain === c.tab; });
+  else if (c.tab === 'fav') L = L.filter(function (x) { return S.favS.indexOf(x.id) >= 0; });
+  if (c.tab === 'hot') L.sort(function (a, b) { return (b.vol1 || 0) * stRate(b) - (a.vol1 || 0) * stRate(a); });
+  else L.sort(function (a, b) { return stCap(b) - stCap(a); });
+  return L;
+}
+function paintStickerList() {
+  var c = S.st, L = stickerFiltered(), box = $('#list'); if (!box) return;
+  if (!L.length) { box.innerHTML = '<div class="empty"><p>' + t(c.tab === 'fav' ? 'no_favs' : 'no_results') + '</p></div>'; return; }
+  if (c.map) return paintStickerMap(L, box);
+  box.innerHTML = L.map(function (x) {
+    return '<div class="row" data-act="stk" data-v="' + esc(x.id) + '">' + stImg(x) + '<div class="nm">' + esc(x.name) + '<div class="sub">' + esc(stSub(x)) + '</div></div><div class="pr">' + stP(x, x.floor) + '<div class="sub">' + stUsd(x, x.floor) + '</div></div>' + pillN(x.c1) + '</div>';
+  }).join('') + '<div class="note">' + t('stickers_credit') + '</div>';
+}
+function paintStickerMap(L, box) {
+  var m = S.st.metric, top = S.st.top || 50;
+  var val = function (x) { return Math.max(1, m === 'vol' ? (x.vol7 || 0) * stRate(x) : stCap(x)); };
+  var all = L.slice().sort(function (a, b) { return val(b) - val(a); }), pick = all.slice(0, top), vals = tmScale(pick, val);
+  var items = pick.map(function (x, i) {
+    var pt = x.floor == null ? '—' : stP(x, x.floor).replace(GEM, '');
+    return { id: x.id, act: 'stk', value: vals[i], name: x.name, short: x.name.split(' ')[0], price: pt, priceTxt: pt, gem: false, change: x.c1,
+             imgUrls: function () { return x.img ? [Gifts.thumb(x.img, 128, 'png')] : []; }, imgFn: function () { return x.img ? '<img class="tim" src="' + esc(Gifts.thumb(x.img, 128, 'png')) + '" alt="">' : ''; } };
+  });
+  box.innerHTML = mapRow('<select id="stmetric"><option value="cap" ' + (m === 'cap' ? 'selected' : '') + '>' + t('market_cap') + '</option><option value="vol" ' + (m === 'vol' ? 'selected' : '') + '>' + t('volume') + ' 7d</option></select>', topSelect('sttop', top)) +
+    '<div class="tm" id="tm"></div><div class="note" id="tmcount"></div><div class="note">' + t('size_note') + '</div>';
+  fillTreemap(items, t('map_title_stickers') + ' · ' + t('map_top') + ' ' + top, all.length);
+}
+function stSeries(x, tf, mode) {
+  return Gifts.json('stickers/' + x.id.replace(/[^A-Za-z0-9_-]/g, '') + '.json').then(function (d) {
+    d = d || { sales: [], snaps: [] };
+    var pts = mode === 'sales' ? d.sales.slice().reverse().map(function (r) { return { t: r[0], v: r[1] }; }) : d.snaps.map(function (r) { return { t: r[0], v: r[1] }; });
+    return Gifts._t.toOHLC(pts, tf, mode === 'floor');
+  }).catch(function () { return []; });
+}
+function stSalesTab(x) {
+  return function (box, st, alive) {
+    Gifts.json('stickers/' + x.id.replace(/[^A-Za-z0-9_-]/g, '') + '.json').then(function (d) {
+      if (!alive()) return;
+      var rows = (d && d.sales) || [];
+      if (!rows.length) { box.innerHTML = '<div class="empty">' + t('no_sales') + (x.chain === 'ton' ? '<br><small>' + t('ton_sales_note') + '</small>' : '') + '</div>'; return; }
+      var n = st.sn || 40;
+      box.innerHTML = (x.inferred ? '<div class="note">' + t('ton_sales_note') + '</div>' : '') + '<div class="stbl"><div class="srow sh"><span>' + t('date') + '</span><span>' + t('price') + '</span><span>USD</span><span>#</span></div>' +
+        rows.slice(0, n).map(function (r) {
+          return '<div class="srow"><span class="sd">' + fmtDate(r[0]) + '</span><b>' + stP(x, r[1]) + '</b><span>' + stUsd(x, r[1]) + '</span><span class="sn">' + esc(r[2] ? '#' + r[2] : '') + '</span></div>';
+        }).join('') + '</div>' + (rows.length > n ? '<div class="empty" style="padding:12px"><button class="btn ghost" data-act="smore">' + t('show_more') + '</button></div>' : '');
+    }).catch(function () { if (alive()) box.innerHTML = '<div class="empty">' + t('no_sales') + '</div>'; });
+  };
+}
+function stVolTab(x) {
+  return function (box, st, alive) {
+    if (!alive()) return;
+    var cards = [['w24', x.vol1, x.sales1], ['w7', x.vol7, x.sales7], ['w30', x.vol30, x.sales30], ['w_all', x.volAll, x.salesAll]].map(function (w) {
+      var avg = w[1] != null && w[2] ? w[1] / w[2] : null;
+      return '<div class="vc"><small>' + t(w[0]) + '</small><b>' + (w[1] != null ? stP(x, w[1]) : '—') + '</b><span>' + stUsd(x, w[1]) + '</span><span>' + (w[2] != null ? w[2] + ' ' + t('sales_count') : '') + '</span>' +
+        (avg != null ? '<span>' + t('avg_price') + ' ' + stP(x, avg) + '</span>' : '') + '</div>';
+    }).join('');
+    box.innerHTML = (x.inferred ? '<div class="note">' + t('ton_sales_note') + '</div>' : '') + '<div class="vgrid">' + cards + '</div>';
+  };
+}
+function vSticker(tok) {
+  $('#view').innerHTML = loadingBox();
+  loadStickers().then(function (list) {
+    if (tok !== S.tok) return;
+    var x = list.find(function (y) { return y.id === S.view.id; }); if (!x) return back();
+    var ov = [[t('chain'), x.chain === 'ton' ? 'TON' : 'Ethereum'], [t('floor'), stP(x, x.floor) + (x.floor != null ? ' <small style="color:var(--muted)">' + stUsd(x, x.floor) + '</small>' : '')],
+      [t('market_cap'), stCap(x) > 0 ? '$' + fmtBig(stCap(x)) : '—'], [t('minted'), x.supply ? nf(x.supply, 0) : '—'], [t('owners'), x.owners != null ? nf(x.owners, 0) : '—']];
+    if (x.listings != null) ov.push([t('listings'), nf(x.listings, 0)]);
+    ov.push([t('tab_volume') + ' · ' + t('w24'), x.vol1 != null ? stP(x, x.vol1) : '—'], [t('tab_volume') + ' · ' + t('w7'), x.vol7 != null ? stP(x, x.vol7) : '—'], [t('tab_volume') + ' · ' + t('w_all'), x.volAll != null ? stP(x, x.volAll) : '—'],
+      [t('recent_sales'), x.salesAll != null ? nf(x.salesAll, 0) : '—'], ['', '<a href="' + esc(x.url) + '" target="_blank" rel="noopener" style="color:var(--accent)">' + (x.chain === 'ton' ? 'GetGems' : 'OpenSea') + ' ↗</a>']);
+    chartPage({
+      imgHtml: stImg(x, 'lg sq'), title: x.name, price: x.floor != null ? stP(x, x.floor) : '—', chg: x.c1,
+      tfs: ['4h', '1d', '1w', '1M'], tf: '1d', autoFallback: true, sparse: true, fname: x.id, modes: ['floor', 'sales'], mode: 'floor',
+      priceTxt: x.floor != null ? (x.cur === 'ETH' ? fmtPrice(x.floor) + ' ETH' : nf(x.floor, 2) + ' TON') : '', imgUrls: function () { return x.img ? [Gifts.thumb(x.img, 256, 'png')] : []; },
+      subTxt: function (st) { return t('mode_' + st.mode) + ' · ' + x.cur; },
+      fetch: function (tf, st) { return stSeries(x, tf, st.mode); },
+      emptyMsg: function (st) { return st.mode === 'floor' ? t('no_floor_hist') : t('no_sales'); },
+      note: function (st) { return st.mode === 'floor' ? t('st_floor_note') : ''; },
+      extra: [{ id: 'sales', label: t('tab_sales'), render: stSalesTab(x) }, { id: 'vol', label: t('tab_volume'), render: stVolTab(x) }],
+      isFav: function () { return S.favS.indexOf(x.id) >= 0; }, toggleFav: function () { toggle(S.favS, x.id, 'favS'); },
+      shareText: x.name + (x.floor != null ? ' — ' + stP(x, x.floor).replace(GEM, '') + ' ' + x.cur : ''), overview: ov
     });
   }).catch(function () { if (tok === S.tok) $('#view').innerHTML = errBox(); });
 }
@@ -707,10 +881,11 @@ function fillTreemap(items, title, total) {
   var cnt = $('#tmcount'); if (cnt) cnt.textContent = t('shown_count').replace('{n}', tm.querySelectorAll('.tile').length).replace('{m}', total);
   S.tmData = { items: items, W: W, H: H, title: title };
 }
-function mapCur() { return S.mcur || (S.tab === 'crypto' ? 'usd' : S.cur); }
+function mapCur() { return S.tab === 'crypto' && S.c.kind === 'stock' ? 'usd' : (S.mcur || (S.tab === 'crypto' ? 'usd' : S.cur)); }
 function mapRow(metricHtml, topHtml) {
   var mc = mapCur();
   var seg = '<div class="seg"><button class="' + (mc === 'gem' ? 'on' : '') + '" data-act="mcur" data-v="gem">' + GEM + '</button><button class="' + (mc === 'usd' ? 'on' : '') + '" data-act="mcur" data-v="usd">$</button></div>';
+  if ((S.tab === 'crypto' && S.c.kind === 'stock') || S.tab === 'stickers') seg = '';
   return '<div class="mrow">' + metricHtml + topHtml + seg + '<button class="ib" data-act="mshare">' + ICON.share + '</button><button class="ib" data-act="mdl">' + ICON.dl + '</button></div>';
 }
 function topSelect(id, top) {
@@ -747,7 +922,7 @@ function paintCoinMap(L, box) {
   box.innerHTML = mapRow('<select id="cmetric"><option value="cap" ' + (m === 'cap' ? 'selected' : '') + '>' + t('market_cap') + '</option>' +
     '<option value="vol" ' + (m === 'vol' ? 'selected' : '') + '>' + t('volume') + '</option></select>', topSelect('ctop', top)) +
     '<div class="tm" id="tm"></div><div class="note" id="tmcount"></div><div class="note">' + t('size_note') + '</div>';
-  fillTreemap(items, t('map_title_coins') + ' · ' + t('map_top') + ' ' + top, all.length);
+  fillTreemap(items, t(S.c.kind === 'stock' ? 'map_title_stocks' : 'map_title_coins') + ' · ' + t('map_top') + ' ' + top, all.length);
 }
 function vModels(tok) {
   var gid = S.view.id;
@@ -1029,6 +1204,10 @@ var A = {
     if (PICK.multi) { PICK.onPick(v); paintPicker($('#pq').value); } else { closeModal(); PICK.onPick(v); }
   },
   // crypto
+  stk: function (v) { go({ type: 'sticker', id: v }); },
+  sttab: function (v) { S.st.tab = v; paintStickers(); },
+  stview: function (v) { S.st.map = v === 'map'; paintStickers(); },
+  ckind: function (v) { S.c.kind = v; S.c.tab = 'all'; S.c.q = ''; S.c.map = S.c.map; vCrypto(S.tok); },
   ctab: function (v) { S.c.tab = v; paintCrypto(); },
   cview: function (v) { S.c.grid = v === 'grid'; S.c.map = v === 'map'; paintCrypto(); },
   mshare: function () {
@@ -1250,6 +1429,7 @@ document.addEventListener('input', function (e) {
   if (e.target.id === 'q') {
     if (S.tab === 'crypto' && !S.view) { S.c.q = e.target.value; paintCryptoList(); }
     else if (S.tab === 'gifts' && !S.view) { S.g.q = e.target.value; paintGiftList(); }
+    else if (S.tab === 'stickers' && !S.view) { S.st.q = e.target.value; paintStickerList(); }
   } else if (e.target.id === 'pq') paintPicker(e.target.value);
   else if (e.target.id && e.target.id.indexOf('cc_') === 0) calcUpdate(e.target.id);
 });
@@ -1257,6 +1437,8 @@ document.addEventListener('change', function (e) {
   if (e.target.id === 'metric') { S.g.metric = e.target.value; paintGiftList(); }
   else if (e.target.id === 'cmetric') { S.c.metric = e.target.value; paintCryptoList(); }
   else if (e.target.id === 'gtop') { S.g.top = +e.target.value; paintGiftList(); }
+  else if (e.target.id === 'stmetric') { S.st.metric = e.target.value; paintStickerList(); }
+  else if (e.target.id === 'sttop') { S.st.top = +e.target.value; paintStickerList(); }
   else if (e.target.id === 'ctop') { S.c.top = +e.target.value; paintCryptoList(); }
 });
 
