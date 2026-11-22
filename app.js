@@ -181,6 +181,7 @@ function render() {
     if (v.type === 'coin') return vCoin(tok);
     if (v.type === 'gift') return vGift(tok);
     if (v.type === 'sticker') return vSticker(tok);
+    if (v.type === 'gsearch') return vGsearch(tok);
     if (v.type === 'models') return vModels(tok);
     if (v.type === 'portfolio') return vPortfolio(tok);
   }
@@ -544,7 +545,7 @@ function vStickers(tok) {
   loadStickers().then(function () { if (tok === S.tok) paintStickers(); }).catch(function () { if (tok === S.tok) el.innerHTML = '<div class="empty"><p>' + t('stickers_wait') + '</p></div>'; });
 }
 function paintStickers() {
-  var c = S.st, tabs = [['all', t('all')], ['ton', 'TON'], ['eth', 'Ethereum'], ['fav', t('favorites')], ['hot', t('hot')]];
+  var c = S.st, tabs = [['all', t('all_st')], ['ton', 'TON'], ['eth', 'Ethereum'], ['fav', t('favorites')], ['hot', t('hot')]];
   $('#view').innerHTML = '<div class="tabs">' + tabs.map(function (x) { return '<button class="' + (c.tab === x[0] ? 'on' : '') + '" data-act="sttab" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
     '<div class="bar"><label class="search">' + ICON.search + '<input id="q" value="' + esc(c.q) + '" placeholder="' + t('search_stickers') + '"></label>' +
     '<button class="ib ' + (!c.map ? 'act' : '') + '" data-act="stview" data-v="list">' + ICON.list + '</button>' +
@@ -643,6 +644,91 @@ function getGifts() {
   if (S.cache.gifts) return Promise.resolve(S.cache.gifts);
   return Gifts.list().then(function (l) { S.cache.gifts = l; return l; });
 }
+/* ---------- بحث الهدايا بالفلاتر (Gift Satellite عبر الـ Worker) ---------- */
+var STAR_USD = 0.015, BDMAP = {}, BDP = null;
+var GS_MKN = { portals: 'Portals', mrkt: 'MRKT', tonnel: 'Tonnel', onchain: 'On-chain', tg: 'Telegram' };
+function gsS() { return S.gsr || (S.gsr = { mode: 'list', col: '', m: '', bd: '', sym: '', num: '', attrs: null, res: null, rows: [], page: 0, pages: 0, busy: false, err: '' }); }
+function hx(v) { return typeof v === 'number' ? '#' + ('000000' + (v & 0xffffff).toString(16)).slice(-6) : (typeof v === 'string' ? (v.charAt(0) === '#' ? v : '#' + v) : null); }
+function bdColors() {
+  return BDP || (BDP = fetch('https://api.changes.tg/backdrops').then(function (r) { return r.json(); }).then(function (a) {
+    (Array.isArray(a) ? a : []).forEach(function (x) { var c1 = hx(x.centerColor), c2 = hx(x.edgeColor); if (x.name && c1 && c2) BDMAP[String(x.name).toLowerCase()] = [c1, c2]; });
+  }).catch(function () {}));
+}
+function applyBd() {
+  var els = document.querySelectorAll('.gst[data-bd]');
+  for (var i = 0; i < els.length; i++) { var c = BDMAP[els[i].dataset.bd]; if (c) els[i].style.background = 'radial-gradient(circle at 50% 35%,' + c[0] + ',' + c[1] + ')'; }
+}
+function gsTile(col, model, bd, cls) {
+  var g = giftByName(col);
+  return '<div class="gst ' + (cls || '') + '" data-bd="' + esc(String(bd || '').toLowerCase()) + '">' + (g ? gImg(g, model || null, 'gsi') : '') + '</div>';
+}
+function gsUsd(ton) { return ton * (Gifts.tonUsd || 0); }
+function vGsearch(tok) {
+  $('#view').innerHTML = loadingBox();
+  getGifts().then(function () { if (tok === S.tok) paintGsearch(); });
+  bdColors().then(applyBd);
+}
+function paintGsearch() {
+  var s = gsS(), names = (S.cache.gifts || []).map(function (x) { return x.name; }).sort(), a = s.attrs || {};
+  var nm = function (l) { return (l || []).map(function (x) { return x.name; }); };
+  var opts = function (list, cur, ph) { return '<option value="">' + esc(ph) + '</option>' + list.map(function (n) { return '<option value="' + esc(n) + '"' + (n === cur ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join(''); };
+  $('#view').innerHTML =
+    '<div class="seg gsm"><button class="' + (s.mode === 'list' ? 'on' : '') + '" data-act="gsmode" data-v="list">' + t('gs_prices') + '</button><button class="' + (s.mode === 'sales' ? 'on' : '') + '" data-act="gsmode" data-v="sales">' + t('gs_sales') + '</button></div>' +
+    (workerOn() ? '' : '<div class="demo">' + t('gs_need_worker') + '</div>') +
+    '<div class="gsf"><select id="gs_col">' + opts(names, s.col, t('gs_gift')) + '</select>' +
+    '<select id="gs_m"' + (s.col ? '' : ' disabled') + '>' + opts(nm(a.models), s.m, t('gs_models')) + '</select>' +
+    '<select id="gs_bd"' + (s.col ? '' : ' disabled') + '>' + opts(nm(a.backdrops), s.bd, t('gs_bds')) + '</select>' +
+    '<select id="gs_sym"' + (s.col ? '' : ' disabled') + '>' + opts(nm(a.patterns || a.symbols), s.sym, t('gs_syms')) + '</select>' +
+    '<input id="gs_n" maxlength="6" value="' + esc(s.num) + '" placeholder="' + esc(t('gs_num')) + '"></div>' +
+    '<button class="btn" data-act="gsgo" style="width:100%;margin:10px 0">' + t('gs_go') + '</button><div id="gsres"></div>' +
+    '<div class="note">Data: Gift Satellite · Thanks to @GiftChanges for the API · ⭐ ≈ $' + STAR_USD + '</div>';
+  paintGsRes();
+}
+function gsLoadAttrs() {
+  var s = gsS(); if (!s.col || !workerOn()) return;
+  var col = s.col;
+  workerPost('/api/gs', { kind: 'attrs', collection: col }).then(function (r) {
+    if (s.col !== col || !S.view || S.view.type !== 'gsearch') return;
+    s.attrs = r && r.ok && r.data ? r.data : { models: [], backdrops: [], patterns: [] };
+    paintGsearch();
+  });
+}
+function gsCard(x) {
+  var ton = +x[5], usd = gsUsd(ton), n = String(x[0] || '').split('-').pop();
+  return '<div class="gsc" data-act="gsopen" data-v="' + esc(x[0]) + '"><div class="gsn">#' + esc(n) + '</div>' + gsTile(x[1], x[2], x[3]) +
+    '<div class="gsp"><b>' + GEM + nf(ton, 2) + '</b><small>$' + (usd >= 100 ? nf(usd, 0) : nf(usd, 2)) + '</small><small>⭐ ' + nf(Math.round(usd / STAR_USD), 0) + '</small></div></div>';
+}
+function paintGsRes() {
+  var s = gsS(), box = $('#gsres'); if (!box) return;
+  if (s.busy) { box.innerHTML = loadingBox(); return; }
+  if (s.err) { box.innerHTML = '<div class="empty">' + esc(s.err) + '</div>'; return; }
+  var h = '';
+  if (s.mode === 'list') {
+    if (!s.res) { box.innerHTML = '<div class="empty">' + t('gs_hint') + '</div>'; return; }
+    var ks = Object.keys(GS_MKN), floors = '';
+    ks.forEach(function (k) { var l = s.res[k]; if (l && l.length) floors += '<div class="gsfl"><small>' + GS_MKN[k] + '</small><b>' + GEM + nf(l[0][5], 2) + '</b></div>'; });
+    if (!floors) { box.innerHTML = '<div class="empty">' + t('gs_none') + '</div>'; return; }
+    h = '<div class="sum gsfls">' + floors + '</div>';
+    ks.forEach(function (k) { var l = s.res[k]; if (!l || !l.length) return; h += '<div class="gsmk"><span>' + GS_MKN[k] + '</span></div><div class="gsr">' + l.map(gsCard).join('') + '</div>'; });
+  } else {
+    if (!s.rows.length) { box.innerHTML = '<div class="empty">' + (s.page ? t('gs_none') : t('gs_hint')) + '</div>'; return; }
+    h = s.rows.map(function (x) {
+      var ton = +x[6], usd = gsUsd(ton), ts = Date.parse(x[7]) / 1000;
+      return '<div class="row" data-act="gsopen" data-v="' + esc(x[0]) + '">' + gsTile(x[2], x[3], x[4], 'sm') + '<div class="nm">' + esc(x[2]) + ' #' + esc(x[1]) +
+        '<div class="sub">' + esc(x[3] || '') + ' · ' + esc(x[4] || '') + '</div></div><div class="pr">' + GEM + nf(ton, 2) + '<div class="sub">$' + nf(usd, usd >= 100 ? 0 : 2) + ' · ⭐ ' + nf(Math.round(usd / STAR_USD), 0) + '</div><div class="sub">' + (ts ? fmtDate(ts) : '') + '</div></div></div>';
+    }).join('') + (s.page < s.pages ? '<button class="btn ghost" data-act="gsmore" style="width:100%;margin-top:8px">' + t('gs_more') + '</button>' : '');
+  }
+  box.innerHTML = h; applyBd();
+}
+function gsFetchSales(page) {
+  var s = gsS(); s.busy = true; s.err = ''; paintGsRes();
+  workerPost('/api/gs', { kind: 'history', collection: s.col, models: s.m ? [s.m] : [], backdrops: s.bd ? [s.bd] : [], symbols: s.sym ? [s.sym] : [], number: s.num, page: page, sortBy: 'date' }).then(function (r) {
+    s.busy = false;
+    if (!r || !r.ok) { s.err = t('gs_err'); } else { s.rows = (page ? s.rows : []).concat(r.data.rows || []); s.page = page + 1; s.pages = r.data.pages || 1; }
+    paintGsRes();
+  });
+}
+
 function vGifts(tok) {
   $('#view').innerHTML = loadingBox();
   getGifts().then(function () { if (tok === S.tok) paintGifts(); });
@@ -669,7 +755,7 @@ function paintGifts() {
   var special = g.tab === 'deals' || g.tab === 'top';
   $('#view').innerHTML =
     badge +
-    '<div class="tabs">' + tabs.map(function (x) { return '<button class="' + (g.tab === x[0] ? 'on' : '') + '" data-act="gtab" data-v="' + x[0] + '">' + x[1] + x[2] + '</button>'; }).join('') + '</div>' +
+    '<div class="tabs"><button data-act="gsrch" data-v="' + (g.tab === 'top' ? 'sales' : 'list') + '" style="color:var(--accent)">' + ICON.search + t('adv_search') + '</button>' + tabs.map(function (x) { return '<button class="' + (g.tab === x[0] ? 'on' : '') + '" data-act="gtab" data-v="' + x[0] + '">' + x[1] + x[2] + '</button>'; }).join('') + '</div>' +
     (special ? '' : '<div class="bar"><label class="search">' + ICON.search + '<input id="q" value="' + esc(g.q) + '" placeholder="' + t('search_gifts') + '"></label>' +
     '<button class="ib ' + (S.gs.sort !== 'floor_d' || S.gs.min !== '' || S.gs.max !== '' ? 'act' : '') + '" data-act="gsort">' + ICON.sort + '</button>' +
     '<button class="ib ' + (g.map ? 'act' : '') + '" data-act="gmap">' + (g.map ? ICON.list : ICON.grid) + '</button></div>' + sumHtml + '<div id="mstat"></div>') + '<div id="glist"></div>';
@@ -1346,6 +1432,18 @@ var A = {
   },
   gretry: function () { Gifts.reset(); S.cache.gifts = null; render(); },
   gtab: function (v) { S.g.tab = v; paintGifts(); },
+  gsrch: function (v) { gsS().mode = v === 'sales' ? 'sales' : 'list'; go({ type: 'gsearch' }); },
+  gsmode: function (v) { gsS().mode = v; paintGsearch(); },
+  gsgo: function () {
+    var s = gsS(); if (!s.col) { toast(t('gs_pick')); return; } if (!workerOn()) { toast(t('gs_need_worker')); return; }
+    if (s.mode === 'sales') { gsFetchSales(0); return; }
+    s.busy = true; s.err = ''; paintGsRes();
+    workerPost('/api/gs', { kind: 'search', collection: s.col, models: s.m ? [s.m] : [], backdrops: s.bd ? [s.bd] : [], symbols: s.sym ? [s.sym] : [], number: s.num }).then(function (r) {
+      s.busy = false; if (!r || !r.ok) { s.err = t('gs_err'); s.res = null; } else s.res = r.data; paintGsRes();
+    });
+  },
+  gsmore: function () { gsFetchSales(gsS().page); },
+  gsopen: function (v) { if (!v) return; var u = 'https://t.me/nft/' + v; try { Telegram.WebApp.openTelegramLink(u); } catch (e) { window.open(u, '_blank'); } },
   gmap: function () { S.g.map = !S.g.map; paintGifts(); },
   gift: function (v) { go({ type: 'gift', id: v }); },
   models: function (v) { go({ type: 'models', id: v }); },
@@ -1431,6 +1529,7 @@ document.addEventListener('input', function (e) {
     else if (S.tab === 'gifts' && !S.view) { S.g.q = e.target.value; paintGiftList(); }
     else if (S.tab === 'stickers' && !S.view) { S.st.q = e.target.value; paintStickerList(); }
   } else if (e.target.id === 'pq') paintPicker(e.target.value);
+  else if (e.target.id === 'gs_n') gsS().num = e.target.value.replace(/[^A-Za-z0-9]/g, '').slice(0, 6);
   else if (e.target.id && e.target.id.indexOf('cc_') === 0) calcUpdate(e.target.id);
 });
 document.addEventListener('change', function (e) {
@@ -1440,6 +1539,10 @@ document.addEventListener('change', function (e) {
   else if (e.target.id === 'stmetric') { S.st.metric = e.target.value; paintStickerList(); }
   else if (e.target.id === 'sttop') { S.st.top = +e.target.value; paintStickerList(); }
   else if (e.target.id === 'ctop') { S.c.top = +e.target.value; paintCryptoList(); }
+  else if (e.target.id === 'gs_col') { var gs = gsS(); gs.col = e.target.value; gs.m = gs.bd = gs.sym = ''; gs.attrs = null; gs.res = null; gs.rows = []; gs.page = 0; paintGsearch(); gsLoadAttrs(); }
+  else if (e.target.id === 'gs_m') gsS().m = e.target.value;
+  else if (e.target.id === 'gs_bd') gsS().bd = e.target.value;
+  else if (e.target.id === 'gs_sym') gsS().sym = e.target.value;
 });
 
 /* ---------- تصدير صور عالية الجودة (خريطة / شارت) ---------- */

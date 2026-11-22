@@ -2,7 +2,7 @@ window.I18N = {
 en: {
   crypto:'Crypto', gifts:'Gifts', profile:'Profile', settings:'Settings',
   all:'All Coins', all_gifts:'All Gifts', hot:'Hot', favorites:'Favorites', gainers:'Gainers', losers:'Losers',
-  search_coins:'Search Coins', search_gifts:'Search Gifts', market_cap:'Market Cap', change24:'24h change', fdv:'FDV',
+  search_coins:'Search Coins', search_gifts:'Search Gifts', adv_search:'Search', gs_prices:'Prices', gs_sales:'Sales', gs_gift:'Gift', gs_models:'All models', gs_bds:'All backdrops', gs_syms:'All symbols', gs_num:'Number or pattern (888, AAA)', gs_go:'Search', gs_pick:'Pick a gift first', gs_none:'No results', gs_hint:'Pick filters, then press Search', gs_more:'Load more', gs_err:'Search failed, try again', gs_need_worker:'Search needs the bot Worker (WORKER_URL) and opening the app from Telegram.',  market_cap:'Market Cap', change24:'24h change', fdv:'FDV',
   add_coins:'Add coins', add_gifts:'Add gifts', no_favs:'Nothing here yet. Add items to keep an eye on them.',
   price:'Price', overview:'Overview', theme:'Theme', language:'Language', currency:'Currency', chart_style:'Chart style',
   alerts:'ALERTS', portfolio_summary:'Portfolio summary', portfolio_sub:'Every day at 08:30 AM', pumps:'Pumps', pumps_sub:'Price spikes',
@@ -28,7 +28,7 @@ en: {
 ru: {
   crypto:'Крипто', gifts:'Подарки', profile:'Профиль', settings:'Настройки',
   all:'Все монеты', all_gifts:'Все подарки', hot:'Горячие', favorites:'Избранное', gainers:'Рост', losers:'Падение',
-  search_coins:'Поиск монет', search_gifts:'Поиск подарков', market_cap:'Капитализация', change24:'Изменение 24ч', fdv:'FDV',
+  search_coins:'Поиск монет', search_gifts:'Поиск подарков', adv_search:'Поиск', gs_prices:'Цены', gs_sales:'Продажи', gs_gift:'Подарок', gs_models:'Все модели', gs_bds:'Все фоны', gs_syms:'Все символы', gs_num:'Номер или шаблон (888, AAA)', gs_go:'Найти', gs_pick:'Сначала выберите подарок', gs_none:'Ничего не найдено', gs_hint:'Выберите фильтры и нажмите Найти', gs_more:'Показать ещё', gs_err:'Ошибка поиска, повторите', gs_need_worker:'Для поиска нужен Worker бота (WORKER_URL) и запуск из Telegram.',  market_cap:'Капитализация', change24:'Изменение 24ч', fdv:'FDV',
   add_coins:'Добавить монеты', add_gifts:'Добавить подарки', no_favs:'Пока пусто. Добавьте, чтобы следить.',
   price:'Цена', overview:'Обзор', theme:'Тема', language:'Язык', currency:'Валюта', chart_style:'Стиль графика',
   alerts:'УВЕДОМЛЕНИЯ', portfolio_summary:'Сводка портфеля', portfolio_sub:'Каждый день в 08:30', pumps:'Пампы', pumps_sub:'Скачки цены',
@@ -54,7 +54,7 @@ ru: {
 ar: {
   crypto:'العملات', gifts:'الهدايا', profile:'الملف', settings:'الإعدادات',
   all:'كل العملات', all_gifts:'كل الهدايا', hot:'الأكثر حركة', favorites:'المفضلة', gainers:'الصاعدة', losers:'الهابطة',
-  search_coins:'ابحث عن عملة', search_gifts:'ابحث عن هدية', market_cap:'القيمة السوقية', change24:'تغيّر 24س', fdv:'FDV',
+  search_coins:'ابحث عن عملة', search_gifts:'ابحث عن هدية', adv_search:'بحث', gs_prices:'الأسعار', gs_sales:'المبيعات', gs_gift:'الهدية', gs_models:'كل النماذج', gs_bds:'كل الخلفيات', gs_syms:'كل الرموز', gs_num:'رقم أو نمط (888, AAA)', gs_go:'بحث', gs_pick:'اختار الهدية الأول', gs_none:'مفيش نتائج', gs_hint:'اختار الفلاتر وبعدين دوس بحث', gs_more:'عرض المزيد', gs_err:'فشل البحث، جرّب تاني', gs_need_worker:'البحث محتاج Worker البوت (WORKER_URL) وفتح التطبيق من تيليجرام.',  market_cap:'القيمة السوقية', change24:'تغيّر 24س', fdv:'FDV',
   add_coins:'إضافة عملات', add_gifts:'إضافة هدايا', no_favs:'لا يوجد شيء هنا بعد. أضف عناصر لمتابعتها.',
   price:'السعر', overview:'نظرة عامة', theme:'المظهر', language:'اللغة', currency:'العملة', chart_style:'شكل الشارت',
   alerts:'التنبيهات', portfolio_summary:'ملخص المحفظة', portfolio_sub:'كل يوم الساعة 08:30 صباحاً', pumps:'الارتفاعات المفاجئة', pumps_sub:'قفزات السعر',
