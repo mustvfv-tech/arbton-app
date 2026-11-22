@@ -1,0 +1,38 @@
+name: Update stocks
+on:
+  schedule:
+    - cron: "*/30 13-21 * * 1-5"   # ساعات السوق الأمريكي (UTC)
+    - cron: "30 22 * * 1-5"        # بعد الإغلاق + تاريخ
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "quotes or hist"
+        default: "hist"
+permissions:
+  contents: write
+concurrency:
+  group: arbton-data
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Restore data branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/data-restore.sh
+      - name: Fetch stocks
+        env:
+          FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
+          OUT_DIR: _out
+          MODE: ${{ github.event.inputs.mode || (github.event.schedule == '30 22 * * 1-5' && 'hist' || 'quotes') }}
+        run: node scripts/stocks.mjs
+      - name: Publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/data-publish.sh
