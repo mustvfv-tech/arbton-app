@@ -1,0 +1,8 @@
+{
+  "_help": "ضيف أو شيل مجموعات. ETH: slug من رابط OpenSea (opensea.io/collection/<slug>). TON: عنوان المجموعة من رابط GetGems (getgems.io/collection/<EQ...>). السطرين الأولانيين أمثلة لازم تتأكد إنهم الاستيكرات اللي عايزها.",
+  "collections": [
+    { "id": "cryptoskulls-stickers", "chain": "eth", "slug": "cryptoskulls-stickers" },
+    { "id": "ministickers", "chain": "eth", "slug": "ministickers" },
+    { "id": "stickaverse", "chain": "eth", "slug": "stickaverse" }
+  ]
+}
