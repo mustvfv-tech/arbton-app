@@ -124,14 +124,14 @@ const items = [];
 // اكتشاف تلقائي لمجموعات OpenSea اللي اسمها فيه "sticker": بنفحص القوائم بأكتر من ترتيب (قيمة سوقية، حجم 7 أيام، حجم يوم، الأحدث)
 if (cfg.discover && cfg.discover.opensea) {
   const H = { "x-api-key": await osKey() }, have = new Set(cfg.collections.map(c => c.slug).filter(Boolean)), re = new RegExp(cfg.discover.match || "sticker", "i");
-  let found = 0, scanned = 0; const sample = [];
+  let found = 0, scanned = 0, topSeen = 0; const sample = [], topN = (cfg.discover.top || 0);
   for (const ord of cfg.discover.orders || ["market_cap", "seven_day_volume", "one_day_volume", "created_date"]) {
     let next = "";
     for (let pg = 0; pg < (cfg.discover.pages || 20); pg++) {
       const j = await get(`https://api.opensea.io/api/v2/collections?chain=ethereum&order_by=${ord}&limit=100${next ? "&next=" + encodeURIComponent(next) : ""}`, H); await sleep(700);
       const list = (j && j.collections) || []; if (!list.length) { if (pg === 0) console.log("empty list for", ord, j ? Object.keys(j).join(",") : "null"); break; }
       scanned += list.length; if (sample.length < 5) sample.push(list[0].collection || list[0].slug);
-      for (const x of list) { const slug = x.collection || x.slug; if (slug && !have.has(slug) && (re.test(slug) || re.test(x.name || ""))) { have.add(slug); cfg.collections.push({ id: slug, chain: "eth", slug }); found++; } }
+      for (const x of list) { const slug = x.collection || x.slug; const inTop = ord === "market_cap" && topN > 0 && topSeen++ < topN; if (slug && !have.has(slug) && (inTop || re.test(slug) || re.test(x.name || ""))) { have.add(slug); cfg.collections.push({ id: slug, chain: "eth", slug }); found++; } }
       next = j.next; if (!next) break;
     }
   }
