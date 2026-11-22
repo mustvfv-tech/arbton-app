@@ -200,3 +200,6 @@ img{display:block}
 .gsp{display:flex;flex-direction:column;align-items:center;padding-top:4px;font-size:13px}.gsp small{color:var(--muted);font-size:11px}
 .gsmk{margin:12px 0 6px;font-weight:700}
 .gsfls{display:flex;flex-wrap:wrap;gap:6px}.gsfl{flex:1 1 30%;text-align:center}.gsfl small{display:block;color:var(--muted)}
+
+.mki{width:16px;height:16px;border-radius:50%;object-fit:cover;vertical-align:-3px;margin-inline-end:5px;display:inline-block}
+.gsfl small .mki,.gsmk .mki{width:18px;height:18px}

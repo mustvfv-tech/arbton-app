@@ -197,7 +197,7 @@ function alertDesc(x) {
   if (x.t === 'rise') return nm + ' ⬆ ' + x.p + '% / 24h';
   if (x.t === 'deal') return nm + ' 🏷 ' + x.p + '% ' + t('a_deal').replace(/^%\s*/, '');
   if (x.t === 'vol') return nm + ' 📈 ≥ ' + x.p + ' ' + t('sales7').split('/')[0].trim();
-  return nm + ' ' + (x.op === '<=' ? '≤' : '≥') + ' ' + nf(x.p, 2) + ' TON';
+  return nm + ' ' + (x.op === '<=' ? '≤' : '≥') + ' ' + '💎 ' + nf(x.p, 2);
 }
 function paintAlertList(r) {
   var box = $('#al_list'); if (!box) return;
@@ -211,7 +211,7 @@ function calcUpdate(id) {
   var buy = v('cc_buy'), sell = v('cc_sell'), q = v('cc_qty') || 1, fee = v('cc_fee') || 0, out = $('#cc_out');
   if (!out || !(buy > 0) || !(sell > 0)) return;
   var net = (sell * (1 - fee / 100) - buy) * q, roi = net / (buy * q) * 100;
-  out.innerHTML = '<div class="kv"><span>' + t('c_net') + '</span><b class="' + (net >= 0 ? 'up-t' : 'down-t') + '">' + (net >= 0 ? '+' : '') + nf(net, 2) + ' TON' + (r ? ' · $' + nf(net * r, 2) : '') + '</b></div>' +
+  out.innerHTML = '<div class="kv"><span>' + t('c_net') + '</span><b class="' + (net >= 0 ? 'up-t' : 'down-t') + '">' + (net >= 0 ? '+' : '') + '💎 ' + nf(net, 2) + (r ? ' · $' + nf(net * r, 2) : '') + '</b></div>' +
     '<div class="kv"><span>' + t('c_roi') + '</span><b class="' + (roi >= 0 ? 'up-t' : 'down-t') + '">' + (roi >= 0 ? '+' : '') + roi.toFixed(2) + '%</b></div>';
 }
 function workerOn() { return !!(CONFIG.WORKER_URL && window.Telegram && Telegram.WebApp && Telegram.WebApp.initData); }
@@ -322,7 +322,7 @@ function paintCP() {
   var cfg = S.cp, st = S.cpState, body = $('#cpbody');
   killChart();
   if (st.tab === 'ov') {
-    body.innerHTML = '<div class="card" id="ovc">' + cfg.overview.map(function (r) { return '<div class="kv"><span>' + esc(r[0]) + '</span><b>' + r[1] + '</b></div>'; }).join('') + '</div>';
+    body.innerHTML = '<div class="card" id="ovc">' + cfg.overview.map(function (r) { return '<div class="kv"><span>' + (r[2] ? r[0] : esc(r[0])) + '</span><b>' + r[1] + '</b></div>'; }).join('') + '</div>';
     if (cfg.card) body.insertAdjacentHTML('beforeend', '<button class="btn" data-act="gcard" style="width:100%;margin:6px 0">' + t('card') + '</button>');
     if (cfg.ovAsync) {
       var otk = S.ctok;
@@ -627,7 +627,7 @@ function vSticker(tok) {
     chartPage({
       imgHtml: stImg(x, 'lg sq'), title: x.name, price: x.floor != null ? stP(x, x.floor) : '—', chg: x.c1,
       tfs: ['4h', '1d', '1w', '1M'], tf: '1d', autoFallback: true, sparse: true, fname: x.id, modes: ['floor', 'sales'], mode: 'floor',
-      priceTxt: x.floor != null ? (x.cur === 'ETH' ? fmtPrice(x.floor) + ' ETH' : nf(x.floor, 2) + ' TON') : '', imgUrls: function () { return x.img ? [Gifts.thumb(x.img, 256, 'png')] : []; },
+      priceTxt: x.floor != null ? (x.cur === 'ETH' ? fmtPrice(x.floor) + ' ETH' : '💎 ' + nf(x.floor, 2)) : '', imgUrls: function () { return x.img ? [Gifts.thumb(x.img, 256, 'png')] : []; },
       subTxt: function (st) { return t('mode_' + st.mode) + ' · ' + x.cur; },
       fetch: function (tf, st) { return stSeries(x, tf, st.mode); },
       emptyMsg: function (st) { return st.mode === 'floor' ? t('no_floor_hist') : t('no_sales'); },
@@ -647,6 +647,8 @@ function getGifts() {
 /* ---------- بحث الهدايا بالفلاتر (Gift Satellite عبر الـ Worker) ---------- */
 var STAR_USD = 0.015, BDMAP = {}, BDP = null;
 var GS_MKN = { portals: 'Portals', mrkt: 'MRKT', tonnel: 'Tonnel', onchain: 'On-chain', tg: 'Telegram' };
+function mkIc(k) { return '<img class="mki" src="mk/' + esc(k) + '.png?v=21" alt="" onerror="this.style.display=\'none\'">'; }
+function mkTag(k, name) { return mkIc(k) + esc(name || k); }
 function gsS() { return S.gsr || (S.gsr = { mode: 'list', col: '', m: '', bd: '', sym: '', num: '', attrs: null, res: null, rows: [], page: 0, pages: 0, busy: false, err: '' }); }
 function hx(v) { return typeof v === 'number' ? '#' + ('000000' + (v & 0xffffff).toString(16)).slice(-6) : (typeof v === 'string' ? (v.charAt(0) === '#' ? v : '#' + v) : null); }
 function bdColors() {
@@ -706,10 +708,10 @@ function paintGsRes() {
   if (s.mode === 'list') {
     if (!s.res) { box.innerHTML = '<div class="empty">' + t('gs_hint') + '</div>'; return; }
     var ks = Object.keys(GS_MKN), floors = '';
-    ks.forEach(function (k) { var l = s.res[k]; if (l && l.length) floors += '<div class="gsfl"><small>' + GS_MKN[k] + '</small><b>' + GEM + nf(l[0][5], 2) + '</b></div>'; });
+    ks.forEach(function (k) { var l = s.res[k]; if (l && l.length) floors += '<div class="gsfl"><small>' + mkTag(k, GS_MKN[k]) + '</small><b>' + GEM + nf(l[0][5], 2) + '</b></div>'; });
     if (!floors) { box.innerHTML = '<div class="empty">' + t('gs_none') + '</div>'; return; }
     h = '<div class="sum gsfls">' + floors + '</div>';
-    ks.forEach(function (k) { var l = s.res[k]; if (!l || !l.length) return; h += '<div class="gsmk"><span>' + GS_MKN[k] + '</span></div><div class="gsr">' + l.map(gsCard).join('') + '</div>'; });
+    ks.forEach(function (k) { var l = s.res[k]; if (!l || !l.length) return; h += '<div class="gsmk"><span>' + mkTag(k, GS_MKN[k]) + '</span></div><div class="gsr">' + l.map(gsCard).join('') + '</div>'; });
   } else {
     if (!s.rows.length) { box.innerHTML = '<div class="empty">' + (s.page ? t('gs_none') : t('gs_hint')) + '</div>'; return; }
     h = s.rows.map(function (x) {
@@ -795,7 +797,7 @@ function paintTop(box) {
       (chg != null ? '<div class="note" style="text-align:center">' + t('vs_prev') + '</div>' : '');
     if (bm.length) html += '<div class="lbl">' + t('by_market') + '</div><div class="card">' + bm.map(function (k) {
       var m = s.byMarket[k];
-      return '<div class="bar2"><span>' + esc(mkName(k)) + '</span><i style="width:' + Math.max(3, m.v / mx * 100).toFixed(0) + '%"></i><b>' + gvBig(m.v) + ' <small>· ' + m.n + '</small></b></div>';
+      return '<div class="bar2"><span>' + mkTag(k, mkName(k)) + '</span><i style="width:' + Math.max(3, m.v / mx * 100).toFixed(0) + '%"></i><b>' + gvBig(m.v) + ' <small>· ' + m.n + '</small></b></div>';
     }).join('') + '</div>';
     html += '<div class="lbl">' + t('top_gifts') + '</div>' + (tp.gifts || []).slice(0, 10).map(function (r, i) {
       var g = giftByName(r.n), f = g ? g.floor : null;
@@ -818,7 +820,7 @@ function paintDeals(box) {
     box.innerHTML = '<div class="chips">' + chips + '</div><div class="note">' + t('deals_note') + '</div>' + (L.length ? L.map(function (i) {
       var g = giftByName(i.n);
       return giftRowHtml(g, i.m, '<div class="nm">' + esc(i.n) + (i.m ? ' · ' + esc(i.m) : '') + '<small class="sub">' + t('avg7') + ' ' + gv(i.avg) + ' · ' + t('last') + ' ' + (i.last != null ? gv(i.last) : '—') + ' · ' + i.c7 + ' ' + t('sales7') + '</small></div>',
-        '<div class="pr">' + gv(i.f) + '<small class="sub">' + esc(mkName(i.mk)) + '</small></div><span class="pill up">-' + i.d.toFixed(1) + '%</span>', i.m ? 'model' : 'gift');
+        '<div class="pr">' + gv(i.f) + '<small class="sub">' + mkTag(i.mk, mkName(i.mk)) + '</small></div><span class="pill up">-' + i.d.toFixed(1) + '%</span>', i.m ? 'model' : 'gift');
     }).join('') : '<div class="empty">' + t('no_data_yet') + '</div>') +
       '<div class="note" style="text-align:center">' + t('updated_at') + ': ' + fmtDate(o.u) + '</div>';
   });
@@ -1075,7 +1077,7 @@ function giftChartCfg(g, o) {
     imgHtml: gImg(g, o.isModel ? o.model : null, 'lg sq'), title: o.name, price: o.floor != null ? gv(o.floor) : '—', chg: o.chg,
     tfs: GTFS2, tf: '2h', curToggle: true, autoFallback: true, fname: g.name + (o.isModel ? '-' + o.model : ''), modes: modes, mode: modes[0], markets: true,
     hideMkt: o.isModel ? ['floor', 'frag'] : ['frag'], ovAsync: o.ovAsync,
-    priceTxt: o.floor != null ? (S.cur === 'gem' ? nf(o.floor, 2) + ' TON' : '$' + nf(o.floor * Gifts.tonUsd, 2)) : '',
+    priceTxt: o.floor != null ? (S.cur === 'gem' ? '💎 ' + nf(o.floor, 2) : '$' + nf(o.floor * Gifts.tonUsd, 2)) : '',
     imgUrls: function () { return Gifts.exportImgs(g, o.isModel ? o.model : null); },
     subTxt: function (st) { return t('mode_' + st.mode) + (st.mode !== 'frag' ? ' · ' + mktName(st.market) : ''); },
     fetch: function (tf, st) { return Gifts.series(g, { mode: st.mode, market: st.market, model: o.model, tf: tf }); },
@@ -1083,7 +1085,7 @@ function giftChartCfg(g, o) {
     note: function (st) { return st.mode === 'floor' ? (o.isModel ? t('model_floor_note') : t('floor_note')) : st.mode === 'frag' ? t('daily_note') : ''; },
     extra: [{ id: 'sales', label: t('tab_sales'), render: renderSalesTab(g, o.model) }, { id: 'vol', label: t('tab_volume'), render: renderVolTab(g, o.model) }],
     isFav: function () { return S.favG.indexOf(g.id) >= 0; }, toggleFav: function () { toggle(S.favG, g.id, 'favG'); },
-    alertName: g.name, models: !o.isModel, gid: g.id, shareText: o.name + (o.floor != null ? ' — ' + nf(o.floor, 2) + ' TON' : ''), overview: o.ov
+    alertName: g.name, models: !o.isModel, gid: g.id, shareText: o.name + (o.floor != null ? ' — ' + '💎 ' + nf(o.floor, 2) : ''), overview: o.ov
   };
 }
 function vGift(tok) {
@@ -1106,7 +1108,7 @@ function vGift(tok) {
         Object.keys(g.markets).sort(function (a, b) { return g.markets[a].p - g.markets[b].p; }).forEach(function (k) {
           var m = g.markets[k];
           var bp = g.markets[g.best] ? g.markets[g.best].p : m.p;
-          ov.push([(Gifts.marketLabel[k] || k) + (k === g.best ? ' ★' : ''), gv(m.p) + (k !== g.best && bp > 0 ? ' <small class="up-t">+' + ((m.p - bp) / bp * 100).toFixed(1) + '%</small>' : '') + ' <small style="opacity:.6">· ' + (m.n >= 50 ? '50+' : m.n) + '</small>']);
+          ov.push([mkTag(k, Gifts.marketLabel[k]) + (k === g.best ? ' ★' : ''), gv(m.p) + (k !== g.best && bp > 0 ? ' <small class="up-t">+' + ((m.p - bp) / bp * 100).toFixed(1) + '%</small>' : '') + ' <small style="opacity:.6">· ' + (m.n >= 50 ? '50+' : m.n) + '</small>', true]);
         });
         var ps = Object.keys(g.markets).map(function (k) { return g.markets[k].p; });
         if (ps.length > 1) ov.push([t('spread'), pill((Math.max.apply(null, ps) - Math.min.apply(null, ps)) / Math.min.apply(null, ps) * 100)]);
@@ -1119,7 +1121,7 @@ function vGift(tok) {
           ov = [[t('best_floor') + ' (' + (Gifts.marketLabel[mObj.best] || mObj.best) + ')', gv(mObj.floor)]];
           Object.keys(mObj.mk || {}).sort(function (a, b) { return mObj.mk[a] - mObj.mk[b]; }).forEach(function (k) {
             var bp2 = mObj.mk[mObj.best] || mObj.mk[k];
-            ov.push([(Gifts.marketLabel[k] || k) + (k === mObj.best ? ' ★' : ''), gv(mObj.mk[k]) + (k !== mObj.best && bp2 > 0 ? ' <small class="up-t">+' + ((mObj.mk[k] - bp2) / bp2 * 100).toFixed(1) + '%</small>' : '')]);
+            ov.push([mkTag(k, Gifts.marketLabel[k]) + (k === mObj.best ? ' ★' : ''), gv(mObj.mk[k]) + (k !== mObj.best && bp2 > 0 ? ' <small class="up-t">+' + ((mObj.mk[k] - bp2) / bp2 * 100).toFixed(1) + '%</small>' : ''), true]);
           });
           var ps2 = Object.keys(mObj.mk || {}).map(function (k) { return mObj.mk[k]; });
           if (ps2.length > 1) ov.push([t('spread'), pill((Math.max.apply(null, ps2) - Math.min.apply(null, ps2)) / Math.min.apply(null, ps2) * 100)]);
@@ -1152,7 +1154,7 @@ function vGift(tok) {
       };
       var cardRows = [];
       var mks = isModel ? (mObj && mObj.mk) : (g.markets ? Object.keys(g.markets).reduce(function (o, k) { o[k] = g.markets[k].p; return o; }, {}) : null);
-      if (mks) Object.keys(mks).sort(function (x, y) { return mks[x] - mks[y]; }).slice(0, 5).forEach(function (k) { cardRows.push([Gifts.marketLabel[k] || k, nf(mks[k], 2) + ' TON']); });
+      if (mks) Object.keys(mks).sort(function (x, y) { return mks[x] - mks[y]; }).slice(0, 5).forEach(function (k) { cardRows.push([Gifts.marketLabel[k] || k, '💎 ' + nf(mks[k], 2)]); });
       var cardInfo = { title: g.name, sub: isModel ? mdl : '', g: g, model: isModel ? mdl : null, price: floor, chg: chg, rows: cardRows };
       if (Gifts.mode === 'live') { var cfgG = giftChartCfg(g, { name: name, floor: floor, chg: chg, isModel: isModel, model: mdl, ov: ov, ovAsync: ovAsync }); cfgG.card = cardInfo; return chartPage(cfgG); }
       chartPage({
@@ -1161,7 +1163,7 @@ function vGift(tok) {
         isFav: function () { return S.favG.indexOf(g.id) >= 0; }, toggleFav: function () { toggle(S.favG, g.id, 'favG'); },
         forceStyle: Gifts.mode === 'live' ? 'area' : null, // المصدر لقطات يومية: خط حقيقي أصدق من شموع مصطنعة
         note: Gifts.mode === 'live' && !isModel ? (hasMk ? t('gs_note') : t('daily_note')) : '',
-        models: !S.view.model, gid: g.id, shareText: name + (floor != null ? ' — ' + nf(floor, 2) + ' TON' : ''), overview: ov
+        models: !S.view.model, gid: g.id, shareText: name + (floor != null ? ' — ' + '💎 ' + nf(floor, 2) : ''), overview: ov
       });
     });
   });
@@ -1215,7 +1217,7 @@ function vPortfolio(tok) {
     var total = items.reduce(function (a, it) { return a + itemValue(it); }, 0);
     chartPage({
       img: Gifts.img('Portfolio'), sq: true, title: t('portfolio_chart'), price: gv(total), chg: 0, tfs: GTFS, tf: '1d', fname: 'portfolio',
-      shareText: t('portfolio_chart') + ' — ' + nf(total, 2) + ' TON',
+      shareText: t('portfolio_chart') + ' — ' + '💎 ' + nf(total, 2),
       fetch: function (tf) {
         if (!items.length) return Promise.resolve([]);
         return Promise.all(items.map(function (it) { var g = giftById(it.gid); return Gifts.chart(it.gid, '', tf, g.floor); })).then(function (all) {
@@ -1392,7 +1394,7 @@ var A = {
     var rows = S.prof.items.map(function (it) { var g = giftById(it.gid); return g ? [g.name + (it.qty > 1 ? ' ×' + it.qty : ''), g.floor * it.qty] : null; }).filter(Boolean).sort(function (p, q) { return q[1] - p[1]; });
     var total = rows.reduce(function (s, r) { return s + r[1]; }, 0), wch = 0;
     S.prof.items.forEach(function (it) { var g = giftById(it.gid); if (g) wch += g.floor * it.qty * g.change; });
-    exportCard({ title: t('portfolio_chart'), sub: '', g: null, price: total, chg: total ? wch / total : 0, rows: rows.slice(0, 6).map(function (r) { return [r[0], nf(r[1], 2) + ' TON']; }) });
+    exportCard({ title: t('portfolio_chart'), sub: '', g: null, price: total, chg: total ? wch / total : 0, rows: rows.slice(0, 6).map(function (r) { return [r[0], '💎 ' + nf(r[1], 2)]; }) });
   },
   calc: function () {
     var r = Gifts.tonUsd || 0;
@@ -1600,7 +1602,7 @@ function exportCard(info) { // كارت مشاركة 1080×1350
     y += 420 + 60; c.textAlign = 'center'; c.fillStyle = fg; c.font = '800 64px ' + FONT; c.fillText(fitText(c, info.title, W - 120), W / 2, y);
     if (info.sub) { y += 58; c.fillStyle = mu; c.font = '600 40px ' + FONT; c.fillText(fitText(c, info.sub, W - 120), W / 2, y); }
     if (info.price != null) {
-      y += 90; c.fillStyle = fg; c.font = '800 84px ' + FONT; c.fillText(nf(info.price, 2) + ' TON', W / 2, y);
+      y += 90; c.fillStyle = fg; c.font = '800 84px ' + FONT; c.fillText('💎 ' + nf(info.price, 2), W / 2, y);
       y += 62; c.fillStyle = mu; c.font = '600 36px ' + FONT; c.fillText('$' + nf(info.price * Gifts.tonUsd, 2), W / 2, y);
     }
     if (info.chg != null) {
