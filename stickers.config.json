@@ -5,7 +5,14 @@
   "getgems": false,
   "match": "sticker",
   "pages": 20,
-  "top": 100
+  "top": 100,
+  "chains": [
+   "ethereum",
+   "ton"
+  ],
+  "tonapi": true,
+  "tonPages": 40,
+  "tonMax": 40
  },
  "collections": [
   {
