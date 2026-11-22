@@ -70,20 +70,34 @@ async function ton(c, prev) {
   return { name: md.name || c.id, img: md.image || "", cur: "TON", floor: isFinite(floor) ? floor : null, supply: num(info.next_item_index), owners: owners.size || null, listings: Object.values(listed).filter(v => !v._pending).length,
     url: "https://getgems.io/collection/" + c.address, _sales: sales, _ls: listed };
 }
-// اكتشاف TON عبر TonAPI: بنفحص قايمة مجموعات TON بالدور ونفلتر بالاسم (تجريبي — الفحص محدود بعدد صفحات)
+// اكتشاف TON عبر TonAPI بالأسماء (discover.names) — بنفحص كل مجموعات TON ونختار المجموعة الموثّقة لكل اسم
 if (cfg.discover && cfg.discover.tonapi) {
-  const H = process.env.TONAPI_KEY ? { authorization: "Bearer " + process.env.TONAPI_KEY } : {}, re = new RegExp(cfg.discover.match || "sticker", "i");
-  const have = new Set(cfg.collections.filter(c => c.address).map(c => c.address)); let scanned = 0, found = 0;
-  const start = Math.floor(((rd(OUT + "/stickers-scan.json", {}).off) || 0)), step = 1000, maxPages = cfg.discover.tonPages || 40;
-  let off = start;
-  for (let pg = 0; pg < maxPages && found < (cfg.discover.tonMax || 40); pg++) {
-    const j = await get(`https://tonapi.io/v2/nfts/collections?limit=${step}&offset=${off}`, H); await sleep(1200);
-    const list = (j && j.nft_collections) || []; if (!list.length) { off = 0; break; }
+  const H = process.env.TONAPI_KEY ? { authorization: "Bearer " + process.env.TONAPI_KEY } : {};
+  const nz = s => String(s || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  const want = new Map((cfg.discover.names || []).map(n => [nz(n), n]));
+  const re = cfg.discover.match ? new RegExp(cfg.discover.match, "i") : null;
+  const have = new Set(cfg.collections.filter(c => c.address).map(c => c.address));
+  const cand = new Map(); let scanned = 0, off = 0, extra = 0;
+  for (let pg = 0; pg < (cfg.discover.tonPages || 150); pg++) {
+    const j = await get(`https://tonapi.io/v2/nfts/collections?limit=1000&offset=${off}`, H); await sleep(1200);
+    const list = (j && j.nft_collections) || []; if (!list.length) break;
     scanned += list.length; off += list.length;
-    for (const x of list) { const nm = x.metadata && x.metadata.name || ""; if (x.address && !have.has(x.address) && re.test(nm) && num(x.next_item_index) > 0) { have.add(x.address); cfg.collections.push({ id: x.address.slice(0, 12), chain: "ton", address: x.address, name: nm }); found++; } }
+    for (const x of list) {
+      const nm = (x.metadata && x.metadata.name) || ""; if (!x.address || have.has(x.address) || num(x.next_item_index) <= 0) continue;
+      const k = nz(nm), ok = !!(x.approved_by && x.approved_by.length), size = num(x.next_item_index);
+      if (want.has(k)) { const cur = cand.get(k); if (!cur || (ok && !cur.ok) || (ok === cur.ok && size > cur.size)) cand.set(k, { x, nm, ok, size }); }
+      else if (re && re.test(nm) && extra < (cfg.discover.tonMax || 0) && !(cfg.discover.exclude && new RegExp(cfg.discover.exclude, "i").test(nm))) { have.add(x.address); cfg.collections.push({ id: x.address.slice(0, 12), chain: "ton", address: x.address, name: nm }); extra++; }
+    }
   }
-  fs.writeFileSync(OUT + "/stickers-scan.json", JSON.stringify({ off }));
-  console.log("tonapi discovery: scanned", scanned, "from offset", start, "found", found);
+  let found = 0, skipped = [];
+  for (const [k, v] of cand) {
+    // الأسماء القصيرة/الأرقام عامة وفيها مقلّدين: لازم تكون موثّقة
+    if (!v.ok && (k.length <= 6 || /^\d+$/.test(k))) { skipped.push(v.nm); continue; }
+    have.add(v.x.address); cfg.collections.push({ id: v.x.address.slice(0, 12), chain: "ton", address: v.x.address, name: v.nm }); found++;
+  }
+  const miss = [...want].filter(([k]) => !cand.has(k)).map(([, n]) => n);
+  console.log("tonapi names: scanned", scanned, "wanted", want.size, "found", found, "skipped(unverified generic)", skipped.length, "not found", miss.length);
+  if (miss.length) console.log("not found:", miss.join(" | "));
 }
 // ---------- GetGems Public API (TON): كل استيكرات تيليجرام + المبيعات الحقيقية ----------
 const GGK = process.env.GETGEMS_KEY || "", GG = "https://api.getgems.io/public-api";
