@@ -1,21 +1,13 @@
 {
- "_help": "ضيف مجموعة بسطر: { \"url\": \"رابط GetGems أو OpenSea\" }. و discover بيدوّر لوحده على OpenSea.",
+ "_help": "discover.top = أكبر N مجموعة NFT على Ethereum (حسب القيمة السوقية) + أي مجموعة اسمها فيه sticker. getgems بيحتاج مفتاح مدفوع (سيبه false).",
  "discover": {
   "opensea": true,
+  "getgems": false,
   "match": "sticker",
-  "pages": 20
+  "pages": 20,
+  "top": 100
  },
  "collections": [
-  {
-   "id": "tg-animated-stickers",
-   "chain": "ton",
-   "address": "EQD6ZRbU0IFF8ou64Ljfo9FSx9BWVNdokCjdwQ98nGnkyjwD"
-  },
-  {
-   "id": "tg-nft-collection",
-   "chain": "ton",
-   "address": "EQBNaiqGGMYWCWwetePCVgCBL5XmuH3SuBuLp_W9e1yGpv6k"
-  },
   {
    "id": "cryptoskulls-stickers",
    "chain": "eth",
