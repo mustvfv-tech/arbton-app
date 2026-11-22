@@ -46,9 +46,10 @@ async function ton(c, prev) {
   for (let off = 0; off < 5000; off += 1000) {
     const j = await get(`${B}/nfts/collections/${c.address}/items?limit=1000&offset=${off}`, H); await sleep(1200);
     const items = (j && j.nft_items) || []; if (!items.length) break;
+    if (off === 0 && (globalThis.__dbg = (globalThis.__dbg || 0) + 1) <= 3) { const w = items.find(i => i.sale) || items[0]; console.log("DEBUG", c.name || c.id, "items", items.length, "withSale", items.filter(i => i.sale).length, "sample:", JSON.stringify({ keys: Object.keys(w), sale: w.sale || null, owner: w.owner && w.owner.address, name: w.metadata && w.metadata.name })); }
     for (const it of items) {
       n++; if (it.owner && it.owner.address) owners.add(it.owner.address);
-      const pr = it.sale && it.sale.price; if (pr && /^ton$/i.test(pr.token_name || "TON") && num(pr.value)) listed[it.address] = [num(pr.value) / 1e9, it.owner && it.owner.address || "", (it.metadata && it.metadata.name) || ("#" + it.index), it.index];
+      const pr = it.sale && it.sale.price; if (pr && /^(ton|gram)$/i.test(pr.token_name || "TON") && num(pr.value)) listed[it.address] = [num(pr.value) / 1e9, it.owner && it.owner.address || "", (it.metadata && it.metadata.name) || ("#" + it.index), it.index];
     }
     if (items.length < 1000) break;
   }
