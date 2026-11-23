@@ -84,7 +84,7 @@ var ICON = {
   down: I('<path d="M12 4v15M6 13l6 6 6-6"/>'),
   heartS: I('<path d="M12 20s-7-4.600-9-9.200C1.600 7.400 4 4.500 7 4.500c2 0 3.600 1 5 3 1.400-2 3-3 5-3 3 0 5.400 2.900 4 6.300-2 4.600-9 9.200-9 9.200z"/>')
 };
-var GEM = '<svg class="gem" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l8 7-8 13L4 9z"/></svg>';
+var GEM = '<img class="gem" src="mk/gram.png?v=22" alt="" onerror="this.outerHTML=\'💎\'">', GEMIMG = new Image(); GEMIMG.src = 'mk/gram.png?v=22';
 
 /* ---------- gift images (CDN of changes.tg مع رجوع للمربع الملوّن) ---------- */
 function gImg(g, model, cls) {
@@ -647,7 +647,7 @@ function getGifts() {
 /* ---------- بحث الهدايا بالفلاتر (Gift Satellite عبر الـ Worker) ---------- */
 var STAR_USD = 0.015, BDMAP = {}, BDP = null;
 var GS_MKN = { portals: 'Portals', mrkt: 'MRKT', tonnel: 'Tonnel', onchain: 'On-chain', tg: 'Telegram' };
-function mkIc(k) { return '<img class="mki" src="mk/' + esc(k) + '.png?v=21" alt="" onerror="this.style.display=\'none\'">'; }
+function mkIc(k) { return '<img class="mki" src="mk/' + esc(k) + '.png?v=22" alt="" onerror="this.style.display=\'none\'">'; }
 function mkTag(k, name) { return mkIc(k) + esc(name || k); }
 function gsS() { return S.gsr || (S.gsr = { mode: 'list', col: '', m: '', bd: '', sym: '', num: '', attrs: null, res: null, rows: [], page: 0, pages: 0, busy: false, err: '' }); }
 function hx(v) { return typeof v === 'number' ? '#' + ('000000' + (v & 0xffffff).toString(16)).slice(-6) : (typeof v === 'string' ? (v.charAt(0) === '#' ? v : '#' + v) : null); }
@@ -1655,7 +1655,7 @@ function exportMap() {
           c.font = (q.t === 'n' ? '700 ' : '600 ') + fs + 'px ' + FONT; c.textBaseline = 'middle';
           c.shadowColor = 'rgba(0,0,0,.4)'; c.shadowBlur = k; c.fillStyle = '#fff';
           var txt = q.t === 'n' ? n.nm : q.t === 'p' ? (n.priceTxt || '') : ((n.c > 0 ? '+' : '') + n.c.toFixed(2) + '%');
-          if (q.t === 'p' && n.gem) { var ds = fs * 0.8, tw = c.measureText(txt).width, sx = cx - (tw + ds * 1.2) / 2; c.beginPath(); c.moveTo(sx + ds / 2, cy + q.h / 2 - ds / 2); c.lineTo(sx + ds, cy + q.h / 2 - ds * 0.1); c.lineTo(sx + ds / 2, cy + q.h / 2 + ds / 2); c.lineTo(sx, cy + q.h / 2 - ds * 0.1); c.closePath(); c.fill(); c.textAlign = 'left'; c.fillText(txt, sx + ds * 1.2, cy + q.h / 2); c.textAlign = 'center'; }
+          if (q.t === 'p' && n.gem) { var ds = fs * 0.8, tw = c.measureText(txt).width, sx = cx - (tw + ds * 1.2) / 2; if (GEMIMG.complete && GEMIMG.naturalWidth) { c.save(); c.beginPath(); c.arc(sx + ds / 2, cy + q.h / 2, ds / 2, 0, 6.2832); c.clip(); c.drawImage(GEMIMG, sx, cy + q.h / 2 - ds / 2, ds, ds); c.restore(); } else { c.beginPath(); c.moveTo(sx + ds / 2, cy + q.h / 2 - ds / 2); c.lineTo(sx + ds, cy + q.h / 2 - ds * 0.1); c.lineTo(sx + ds / 2, cy + q.h / 2 + ds / 2); c.lineTo(sx, cy + q.h / 2 - ds * 0.1); c.closePath(); c.fill(); } c.textAlign = 'left'; c.fillText(txt, sx + ds * 1.2, cy + q.h / 2); c.textAlign = 'center'; }
           else c.fillText(fitText(c, txt, w * 0.94), cx, cy + q.h / 2);
           c.shadowBlur = 0;
         }
