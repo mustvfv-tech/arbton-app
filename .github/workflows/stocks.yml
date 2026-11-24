@@ -1,7 +1,7 @@
 name: Update stocks
 on:
   schedule:
-    - cron: "*/30 13-21 * * 1-5"   # ساعات السوق الأمريكي (UTC)
+    - cron: "*/5 13-21 * * 1-5"   # ساعات السوق الأمريكي (UTC)
     - cron: "30 22 * * 1-5"        # بعد الإغلاق + تاريخ
   workflow_dispatch:
     inputs:

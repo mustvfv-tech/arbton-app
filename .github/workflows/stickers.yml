@@ -1,7 +1,7 @@
 name: Update stickers
 on:
   schedule:
-    - cron: "11 */2 * * *"
+    - cron: "11,41 * * * *"
   workflow_dispatch:
 permissions:
   contents: write
