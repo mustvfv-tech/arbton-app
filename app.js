@@ -200,6 +200,13 @@ function alertDesc(x) {
   if (x.t === 'vol') return nm + ' 📈 ≥ ' + x.p + ' ' + t('sales7').split('/')[0].trim();
   return nm + ' ' + (x.op === '<=' ? '≤' : '≥') + ' ' + '💎 ' + nf(x.p, 2);
 }
+function paintSubList(r) {
+  var box = $('#sub_list'); if (!box) return; var L = r && r.subs || []; if (!L.length) { box.innerHTML = ''; return; }
+  box.innerHTML = '<h4 style="margin:12px 0 6px">' + t('sub_title') + '</h4>' + L.map(function (x, i) {
+    var f = [(x.ms || []).join(', '), (x.bd || []).join(', '), (x.sy || []).join(', ')].filter(Boolean).join(' · ');
+    return '<div class="kv"><span>' + esc(x.c) + ' ≤ ' + GEM + nf(x.p, 2) + (f ? '<br><small>' + esc(f) + '</small>' : '') + '</span><button class="ib" data-act="subdel" data-v="' + i + '">×</button></div>';
+  }).join('');
+}
 function paintAlertList(r) {
   var box = $('#al_list'); if (!box) return;
   var L = r && r.alerts || [];
@@ -683,7 +690,7 @@ function paintGsearch() {
     gsPickBtn('bd', s.bd || t('gs_bds'), s.bd ? '<span class="gst xs" data-bd="' + esc(s.bd.toLowerCase()) + '"></span>' : '', !s.col) +
     gsPickBtn('sym', s.sym || t('gs_syms'), '', !s.col) +
     '<input id="gs_n" maxlength="6" value="' + esc(s.num) + '" placeholder="' + esc(t('gs_num')) + '"></div>' +
-    '<button class="btn" data-act="gsgo" style="width:100%;margin:10px 0">' + t('gs_go') + '</button><div id="gsres"></div>' +
+    '<button class="btn" data-act="gsgo" style="width:100%;margin:10px 0 6px">' + t('gs_go') + '</button>' + (workerOn() ? '<button class="btn ghost" data-act="gssub" style="width:100%;margin:0 0 10px">🔔 ' + t('sub_btn') + '</button>' : '') + '<div id="gsres"></div>' +
     '<div class="note">Data: Gift Satellite · Thanks to @GiftChanges for the API · ⭐ ≈ $' + STAR_USD + '</div>';
   paintGsRes();
 }
@@ -1451,8 +1458,24 @@ var A = {
   },
   myalerts: function () {
     if (!workerOn()) return modal('<h3>' + t('my_alerts') + '</h3><div class="note">' + t('alerts_need_tg') + '</div><div class="btns"><button class="btn ghost" data-act="mclose">' + t('done') + '</button></div>');
-    modal('<h3>' + t('my_alerts') + '</h3><div id="al_list"><div class="loading">' + t('loading') + '</div></div><div class="btns"><button class="btn ghost" data-act="mclose">' + t('done') + '</button></div>');
+    modal('<h3>' + t('my_alerts') + '</h3><div id="al_list"><div class="loading">' + t('loading') + '</div></div><div id="sub_list"></div><div class="btns"><button class="btn ghost" data-act="mclose">' + t('done') + '</button></div>');
     workerPost('/api/alerts', { action: 'list' }).then(paintAlertList);
+    workerPost('/api/subs', { action: 'list' }).then(paintSubList);
+  },
+  subdel: function (v) { workerPost('/api/subs', { action: 'del', index: +v }).then(paintSubList); },
+  gssub: function () {
+    var s = gsS(); if (!s.col) { toast(t('gs_pick')); return; }
+    var f = [s.m ? t('gs_models') + ': ' + s.m : '', s.bd ? t('gs_bds') + ': ' + s.bd : '', s.sym ? t('gs_syms') + ': ' + s.sym : ''].filter(Boolean).join(' · ');
+    modal('<h3>' + t('sub_title') + ' · ' + esc(s.col) + '</h3>' + (f ? '<div class="note">' + esc(f) + '</div>' : '') +
+      '<div class="frow"><label>' + t('sub_price') + '</label><input id="sub_p" type="number" inputmode="decimal" min="0" step="any"></div>' +
+      '<div class="note">' + t('sub_note') + '</div>' +
+      '<div class="btns"><button class="btn ghost" data-act="mclose">' + t('done') + '</button><button class="btn" data-act="gssubsave">' + t('alert_save') + '</button></div>');
+  },
+  gssubsave: function () {
+    var s = gsS(), p = parseFloat($('#sub_p').value); if (!(p > 0)) return;
+    workerPost('/api/subs', { action: 'add', collection: s.col, models: s.m ? [s.m] : [], backdrops: s.bd ? [s.bd] : [], symbols: s.sym ? [s.sym] : [], price: p }).then(function (r) {
+      closeModal(); toast(r && r.ok ? t('sub_ok') : t(r && r.error === 'limit' ? 'sub_limit' : 'alert_fail'));
+    });
   },
   aldel: function (v) { workerPost('/api/alerts', { action: 'del', index: +v }).then(paintAlertList); },
   expshare: function () { try { navigator.share({ files: [S.expFile], title: CONFIG.BRAND }); } catch (e) {} },
