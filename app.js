@@ -1206,6 +1206,72 @@ function itemValue(it) { var g = giftById(it.gid); return g ? g.floor * it.qty :
 function vProfile(tok) {
   getGifts().then(function () { if (S.tab === 'profile' && !S.view) paintProfile(); });
 }
+/* ---------- محفظة الكارت (بروفايل) ---------- */
+var WC_TH = {
+  gold: ['#8a7a45', '#b9a46a', '#d9c590'], blue: ['#1d56b8', '#3a8ae8', '#8fc2ff'], dark: ['#17171d', '#30303b', '#7d7d8c'],
+  pink: ['#a8386f', '#e06aa4', '#ffb3d6'], green: ['#16694a', '#35ad78', '#9be3c1'], purple: ['#4b2a8f', '#8458e0', '#c9b3ff']
+};
+function WC() { var w = S.wc || (S.wc = store.get('wc', { theme: 'gold', stk: [] })); if (!w.stk) w.stk = []; if (!WC_TH[w.theme]) w.theme = 'gold'; return w; }
+function wcSave() { store.set('wc', WC()); }
+function wcBalHtml(total) {
+  var s = nf(total, 2), p = s.lastIndexOf('.'), hasDec = p >= 0 && /^\d+$/.test(s.slice(p + 1));
+  return GEM + '<b>' + esc(hasDec ? s.slice(0, p) : s) + '</b>' + (hasDec ? '<small>.' + esc(s.slice(p + 1)) + '</small>' : '') + '<span>GRAM</span>';
+}
+function wcStickerHtml(w, edit) {
+  return w.stk.map(function (st, i) {
+    var g = giftById(st.gid); if (!g) return '';
+    return '<div class="wst' + (edit ? ' ed' : '') + (edit && S.wcSel === i ? ' sel' : '') + '" data-i="' + i + '" style="left:' + st.x.toFixed(1) + '%;top:' + st.y.toFixed(1) + '%;width:' + st.s.toFixed(1) + '%">' + gImg(g, null, 'wsi') + '</div>';
+  }).join('');
+}
+function wcardHtml(total, name, un) {
+  var w = WC(), th = WC_TH[w.theme], usd = total * (Gifts.tonUsd || 0), edit = !!S.wcEdit;
+  return '<div class="wcard" id="wcard" style="--c1:' + th[0] + ';--c2:' + th[1] + ';--c3:' + th[2] + '"><div class="wpat"></div>' +
+    '<div class="wbal">' + wcBalHtml(total) + '</div>' + (usd > 0 ? '<div class="wusd">$' + nf(usd, 2) + '</div>' : '') +
+    '<div class="wname">' + esc((U.username ? U.username : name).toUpperCase()) + '</div>' +
+    '<div class="wqr"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><path d="M14 14h2.5v2.5H14zM18 18h2.5v2.5H18z"/></svg></div>' +
+    wcStickerHtml(w, edit) + '</div>' +
+    '<div class="pacts wcb"><button data-act="wcadd">' + ICON.plus + t('wc_sticker') + '</button><button data-act="wctheme">🎨 ' + t('wc_color') + '</button><button class="' + (edit ? 'on' : '') + '" data-act="wcedit">' + ICON.edit + t('wc_move') + '</button><button data-act="wcsave">' + ICON.dl + t('wc_save') + '</button></div>' +
+    (edit && w.stk.length ? '<div class="pacts wcb"><button data-act="wcsmall">− ' + t('wc_size') + '</button><button data-act="wcbig">+ ' + t('wc_size') + '</button><button data-act="wcdel">🗑 ' + t('wc_remove') + '</button></div><div class="note">' + t('wc_hint') + '</div>' : '');
+}
+function wcBind() {
+  var c = $('#wcard'); if (!c) return;
+  c.addEventListener('pointerdown', function (e) {
+    var el = e.target.closest('.wst'); if (!el || !S.wcEdit) return;
+    e.preventDefault();
+    var i = +el.getAttribute('data-i'), r = c.getBoundingClientRect(), st = WC().stk[i], sx = e.clientX, sy = e.clientY, ox = st.x, oy = st.y;
+    S.wcSel = i; Array.prototype.forEach.call(c.querySelectorAll('.wst'), function (n) { n.classList.toggle('sel', n === el); });
+    function mv(ev) { st.x = Math.max(0, Math.min(100, ox + (ev.clientX - sx) / r.width * 100)); st.y = Math.max(0, Math.min(100, oy + (ev.clientY - sy) / r.height * 100)); el.style.left = st.x + '%'; el.style.top = st.y + '%'; }
+    function up() { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); wcSave(); }
+    document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+  });
+}
+function wcExport() {
+  var w = WC(), th = WC_TH[w.theme], W = 1280, H = 737, total = 0;
+  S.prof.items.forEach(function (it) { var g = giftById(it.gid); if (g) total += g.floor * it.qty; });
+  var jobs = w.stk.map(function (st) { var g = giftById(st.gid); return g ? loadImgTry(Gifts.exportImgs(g, null)) : Promise.resolve(null); });
+  modal('<div class="loading">' + t('generating') + '</div>');
+  Promise.all(jobs).then(function (imgs) {
+    var cv = document.createElement('canvas'); cv.width = W; cv.height = H; var c = cv.getContext('2d');
+    var gr = c.createLinearGradient(0, 0, W, H); gr.addColorStop(0, th[0]); gr.addColorStop(0.55, th[1]); gr.addColorStop(1, th[0]);
+    rr(c, 0, 0, W, H, 70); c.save(); c.clip(); c.fillStyle = gr; c.fillRect(0, 0, W, H);
+    c.fillStyle = 'rgba(255,255,255,.07)'; for (var y = 40; y < H; y += 110) for (var x = ((y / 110) % 2) * 80 + 40; x < W; x += 160) { c.beginPath(); c.arc(x, y, 9, 0, 6.2832); c.fill(); }
+    var sh = c.createLinearGradient(0, 0, W, 0); sh.addColorStop(0, 'rgba(255,255,255,0)'); sh.addColorStop(0.45, 'rgba(255,255,255,.10)'); sh.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = sh; c.fillRect(0, 0, W, H);
+    c.textBaseline = 'middle'; c.textAlign = 'left';
+    var s = nf(total, 2), p = s.lastIndexOf('.'), ip = p >= 0 ? s.slice(0, p) : s, dp = p >= 0 ? s.slice(p) : '', x0 = 110, yb = H * 0.42;
+    if (GEMIMG.complete && GEMIMG.naturalWidth) { c.save(); c.beginPath(); c.arc(x0 + 38, yb, 38, 0, 6.2832); c.clip(); c.drawImage(GEMIMG, x0, yb - 38, 76, 76); c.restore(); }
+    var tx = x0 + 100; c.fillStyle = '#fff'; c.font = '700 84px system-ui,sans-serif'; c.fillText(ip, tx, yb); tx += c.measureText(ip).width;
+    c.font = '600 54px system-ui,sans-serif'; c.fillText(dp, tx, yb + 10); tx += c.measureText(dp).width + 18;
+    c.fillStyle = 'rgba(255,255,255,.7)'; c.font = '700 70px system-ui,sans-serif'; c.fillText('GRAM', tx, yb);
+    if (Gifts.tonUsd > 0) { c.font = '600 44px system-ui,sans-serif'; c.fillStyle = 'rgba(255,255,255,.6)'; c.fillText('$' + nf(total * Gifts.tonUsd, 2), x0, yb + 92); }
+    c.fillStyle = '#fff'; c.font = '700 46px ui-monospace,monospace'; c.fillText((U.username ? U.username : (U.first_name || 'User')).toUpperCase(), x0, H - 100);
+    rr(c, W - 360, H * 0.37, 150, 112, 22); c.fillStyle = 'rgba(255,255,255,.88)'; c.fill();
+    c.strokeStyle = '#555'; c.lineWidth = 6; [[W - 330, H * 0.37 + 22], [W - 290, H * 0.37 + 22], [W - 330, H * 0.37 + 62]].forEach(function (q) { rr(c, q[0], q[1], 28, 28, 7); c.stroke(); });
+    imgs.forEach(function (im, i) { if (!im) return; var st = w.stk[i], sz = st.s / 100 * W, cx = st.x / 100 * W, cy = st.y / 100 * H, k = Math.min(sz / im.width, sz / im.height); c.drawImage(im, cx - im.width * k / 2, cy - im.height * k / 2, im.width * k, im.height * k); });
+    c.restore();
+    c.textAlign = 'right'; c.fillStyle = 'rgba(255,255,255,.5)'; c.font = '700 30px system-ui,sans-serif'; c.fillText('@' + CONFIG.BRAND, W - 60, H - 40);
+    closeModal(); showImage(cv, CONFIG.BRAND + '-wallet.png');
+  });
+}
 function paintProfile() {
   var P = S.prof, p = S.p;
   var name = U.first_name || 'User', un = U.username ? '@' + U.username : '@username';
@@ -1233,13 +1299,14 @@ function paintProfile() {
     }).join('') + '</div>' : '<div class="empty">' + t('empty_assets') + '</div>';
   }
   $('#view').innerHTML =
-    '<div class="pf">' + av + '<h2>' + esc(name) + '</h2></div>' +
+    '<div class="pf">' + av + '<h2>' + esc(name) + '</h2></div>' + wcardHtml(total, name, un) +
     '<div class="pacts"><button data-act="padd">' + ICON.plus + t('add') + '</button><button class="' + (p.edit ? 'on' : '') + '" data-act="pedit">' + ICON.edit + t('edit') + '</button><button data-act="pmore">' + ICON.more + t('more') + '</button></div>' +
     '<div class="pacts"><button data-act="myalerts">' + ICON.bellI + t('my_alerts') + '</button><button data-act="calc">' + ICON.calc + t('calc') + '</button><button data-act="pcard">' + ICON.imgI + t('card') + '</button></div>' +
     '<div class="card"><div class="kv" style="display:block;padding:12px 0"><b class="u" style="color:var(--accent)">' + esc(un) + '</b><br><small style="color:var(--muted)">' + t('username') + '</small></div>' +
     '<div class="val"><b style="font-size:18px">' + gv(total) + '</b> <span class="' + (pch >= 0 ? 'up-t' : 'down-t') + '">' + (pch > 0 ? '+' : '') + pch.toFixed(2) + '%</span><small>' + t('assets_value') + (cost > 0 ? ' · ' + t('pnl') + ' <span class="' + (total - cost >= 0 ? 'up-t' : 'down-t') + '">' + (total - cost >= 0 ? '+' : '') + gv(total - cost) + '</span>' : '') + '</small>' +
     '<button class="pulse" data-act="ppulse">' + ICON.pulse + '</button></div></div>' +
     '<div class="tabs">' + tabs + '</div>' + body;
+  wcBind();
 }
 function vPortfolio(tok) {
   getGifts().then(function () {
@@ -1462,6 +1529,20 @@ var A = {
     workerPost('/api/alerts', { action: 'list' }).then(paintAlertList);
     workerPost('/api/subs', { action: 'list' }).then(paintSubList);
   },
+  wcedit: function () { S.wcEdit = !S.wcEdit; S.wcSel = S.wcEdit && WC().stk.length ? WC().stk.length - 1 : null; paintProfile(); },
+  wctheme: function () { var w = WC(), k = Object.keys(WC_TH); w.theme = k[(k.indexOf(w.theme) + 1) % k.length]; wcSave(); paintProfile(); },
+  wcadd: function () {
+    getGifts().then(function (list) {
+      modal('<h3>' + t('wc_sticker') + '</h3><div class="search">' + ICON.search + '<input id="wc_q" placeholder="' + esc(t('search_gifts')) + '"></div><div class="grid wcg" id="wc_g"></div><div class="btns"><button class="btn ghost" data-act="mclose">' + t('done') + '</button></div>');
+      var paint = function (q) { q = (q || '').toLowerCase(); $('#wc_g').innerHTML = list.filter(function (g) { return !q || g.name.toLowerCase().indexOf(q) >= 0; }).slice(0, 80).map(function (g) { return '<div class="cell" data-act="wcpick" data-v="' + g.id + '">' + gImg(g, null, 'lg sq big') + '<b>' + esc(g.name) + '</b></div>'; }).join(''); };
+      paint(''); $('#wc_q').addEventListener('input', function () { paint(this.value); });
+    });
+  },
+  wcpick: function (v) { var w = WC(); w.stk.push({ gid: v, x: 76 - (w.stk.length % 3) * 8, y: 66 - (w.stk.length % 3) * 6, s: 26 }); S.wcSel = w.stk.length - 1; S.wcEdit = true; wcSave(); closeModal(); paintProfile(); },
+  wcbig: function () { var w = WC(), st = w.stk[S.wcSel]; if (st) { st.s = Math.min(80, st.s + 5); wcSave(); paintProfile(); } },
+  wcsmall: function () { var w = WC(), st = w.stk[S.wcSel]; if (st) { st.s = Math.max(8, st.s - 5); wcSave(); paintProfile(); } },
+  wcdel: function () { var w = WC(); if (S.wcSel != null && w.stk[S.wcSel]) { w.stk.splice(S.wcSel, 1); S.wcSel = w.stk.length ? w.stk.length - 1 : null; wcSave(); paintProfile(); } },
+  wcsave: function () { wcExport(); },
   subdel: function (v) { workerPost('/api/subs', { action: 'del', index: +v }).then(paintSubList); },
   gssub: function () {
     var s = gsS(); if (!s.col) { toast(t('gs_pick')); return; }

@@ -221,3 +221,23 @@ img{display:block}
 .gsp{padding-top:3px;font-size:11px}.gsp small{font-size:9.5px;line-height:1.25}
 .gsp .gem{width:11px;height:11px;margin-inline-end:2px}
 .gsp b{gap:1px}
+
+/* محفظة الكارت */
+.wcard{position:relative;width:100%;aspect-ratio:1280/737;border-radius:22px;overflow:hidden;color:#fff;background:linear-gradient(135deg,var(--c1),var(--c2) 55%,var(--c1));margin:10px 0 6px;box-shadow:0 6px 22px rgba(0,0,0,.35);user-select:none}
+.wpat{position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.09) 2px,transparent 2.5px);background-size:22px 22px;pointer-events:none}
+.wcard::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.10) 48%,transparent 66%);pointer-events:none}
+.wbal{position:absolute;left:8.5%;top:42%;transform:translateY(-50%);display:flex;align-items:center;gap:6px;white-space:nowrap}
+.wbal b{font-size:clamp(26px,9vw,46px);font-weight:700;line-height:1}.wbal small{font-size:clamp(16px,5.4vw,28px);font-weight:600;align-self:flex-end;margin-bottom:2px}
+.wbal span{font-size:clamp(16px,5.8vw,34px);font-weight:700;opacity:.7;margin-inline-start:4px}
+.wbal .gem{width:clamp(26px,7vw,40px);height:clamp(26px,7vw,40px);margin:0 4px 0 0}
+.wusd{position:absolute;left:8.5%;top:56%;font-size:clamp(13px,3.8vw,20px);font-weight:600;opacity:.65}
+.wname{position:absolute;left:8.5%;bottom:11%;font-size:clamp(14px,4vw,22px);font-weight:700;font-family:ui-monospace,monospace;letter-spacing:.04em}
+.wqr{position:absolute;right:16%;top:37%;width:11.7%;aspect-ratio:150/112;background:rgba(255,255,255,.88);border-radius:14%;display:flex;align-items:center;justify-content:center}
+.wqr svg{width:62%;fill:none;stroke:#555;stroke-width:2}
+.wst{position:absolute;transform:translate(-50%,-50%);aspect-ratio:1;z-index:3}
+.wst .wsi{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35));pointer-events:none}
+.wst.ed{touch-action:none;cursor:grab;outline:1.5px dashed rgba(255,255,255,.5);outline-offset:2px;border-radius:8px}
+.wst.sel{outline:2px solid #fff}
+.wcb{margin:6px 0}
+.wcg{max-height:50vh;overflow:auto}
+.pacts.wcb{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:8px}.pacts.wcb button{min-width:0;padding:10px 4px;font-size:12px}
