@@ -924,7 +924,7 @@ function tmValue(raw, lo, hi) {
 function tmScale(arr, get, fl) { // مساحة متناسبة مع القيمة (زي المرجع) مع حد أدنى عشان أصغر مربع يفضل مقروء
   var v = arr.map(function (x) { return Math.max(1e-9, +get(x) || 0); });
   var hi = Math.max.apply(null, v) || 1;
-  return v.map(function (x) { return Math.pow(Math.max(x, hi * (fl || 0.008)) / hi, 0.5) * 100; }); // جذر تربيعي: المربعات الكبيرة تصغر وكل الصور تبان
+  return v.map(function (x) { return Math.pow(Math.max(x, hi * (fl || 0.008)) / hi, 0.38) * 100; }); // جذر تربيعي: المربعات الكبيرة تصغر وكل الصور تبان
 }
 // items: {id, act, value, name, short, price(html), priceTxt, gem, change, gid, g, imgFn(), imgUrls()}
 function tmTiles(items, W, H) {
@@ -943,7 +943,7 @@ function tmTiles(items, W, H) {
       else if (chg) chg = false;
       else break;
     }
-    var room = avail - textH() - gap, iconS = Math.min(w * 0.6, room, 100);
+    var room = avail - textH() - gap, iconS = Math.min(w * 0.62, room, 90);
     var showIcon = !!n.imgFn && iconS >= 10;
     n.c = c; n.nm = nm; n.fs = fs; n.pfs = pf; n.iconS = showIcon ? iconS : 0; n.showIcon = showIcon; n.showName = true; n.showChg = chg; n.showPrice = price;
     n.th = textH() + (showIcon ? iconS + gap : 0);
@@ -971,9 +971,9 @@ var FOOT = 0; // @ARBTON بيتحط فوق أكبر مربع زي المرجع (
 function mapHeight(n) { return Math.max(440, Math.round(window.innerHeight - 190)); }
 // أصغر ارتفاع بحيث كل مربع يتّسع للصورة + الاسم + النسبة. الخريطة بتتفرد بالارتفاع بدل ما تخبّي مربعات
 function tmFit(items, W, H0) {
-  var H = H0, cap = items.length <= 50 ? 880 : 1500; // سقف الارتفاع: 50 مربع تقريباً شاشة ونص، و100 حوالي شاشتين
+  var H = H0, cap = items.length <= 25 ? 760 : items.length <= 50 ? 1150 : 2000; // سقف الارتفاع: 50 مربع تقريباً شاشة ونص، و100 حوالي شاشتين
   for (var i = 0; i < 60; i++) {
-    var ok = squarify(items, 0, 0, W, H).every(function (n) { return n.w >= 36 && n.h >= 42; });
+    var ok = squarify(items, 0, 0, W, H).every(function (n) { return n.w >= 44 && n.h >= 58; });
     if (ok || H >= cap) break;
     H = Math.min(cap, Math.round(H * 1.04));
   }
