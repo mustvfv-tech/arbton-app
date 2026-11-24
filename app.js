@@ -1211,6 +1211,10 @@ var WC_TH = {
   gold: ['#8a7a45', '#b9a46a', '#d9c590'], blue: ['#1d56b8', '#3a8ae8', '#8fc2ff'], dark: ['#17171d', '#30303b', '#7d7d8c'],
   pink: ['#a8386f', '#e06aa4', '#ffb3d6'], green: ['#16694a', '#35ad78', '#9be3c1'], purple: ['#4b2a8f', '#8458e0', '#c9b3ff']
 };
+var WC_BLK = { 'black': ['#3a3b3d', '#0c0c0d'], 'onyx black': ['#2b2b2e', '#000000'] };
+function wcMix(h, k) { var n = parseInt(h.slice(1), 16), r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255; return 'rgb(' + Math.round(r + (255 - r) * k) + ',' + Math.round(g + (255 - g) * k) + ',' + Math.round(b + (255 - b) * k) + ')'; }
+function wcCols() { var w = WC(); return w.c ? w.c : WC_TH[w.theme]; } // [edge, center, light]
+function wcBg(w) { var c = wcCols(); return w.c ? 'radial-gradient(circle at 38% 45%,' + c[1] + ',' + c[0] + ' 85%)' : 'linear-gradient(135deg,' + c[0] + ',' + c[1] + ' 55%,' + c[0] + ')'; }
 function WC() { var w = S.wc || (S.wc = store.get('wc', { theme: 'gold', stk: [] })); if (!w.stk) w.stk = []; if (!WC_TH[w.theme]) w.theme = 'gold'; return w; }
 function wcSave() { store.set('wc', WC()); }
 function wcBalHtml(total) {
@@ -1220,12 +1224,12 @@ function wcBalHtml(total) {
 function wcStickerHtml(w, edit) {
   return w.stk.map(function (st, i) {
     var g = giftById(st.gid); if (!g) return '';
-    return '<div class="wst' + (edit ? ' ed' : '') + (edit && S.wcSel === i ? ' sel' : '') + '" data-i="' + i + '" style="left:' + st.x.toFixed(1) + '%;top:' + st.y.toFixed(1) + '%;width:' + st.s.toFixed(1) + '%">' + gImg(g, null, 'wsi') + '</div>';
+    return '<div class="wst' + (edit ? ' ed' : '') + (edit && S.wcSel === i ? ' sel' : '') + '" data-i="' + i + '" style="left:' + st.x.toFixed(1) + '%;top:' + st.y.toFixed(1) + '%;width:' + st.s.toFixed(1) + '%">' + gImg(g, st.m || null, 'wsi') + '</div>';
   }).join('');
 }
 function wcardHtml(total, name, un) {
-  var w = WC(), th = WC_TH[w.theme], usd = total * (Gifts.tonUsd || 0), edit = !!S.wcEdit;
-  return '<div class="wcard" id="wcard" style="--c1:' + th[0] + ';--c2:' + th[1] + ';--c3:' + th[2] + '"><div class="wpat"></div>' +
+  var w = WC(), th = wcCols(), usd = total * (Gifts.tonUsd || 0), edit = !!S.wcEdit;
+  return '<div class="wcard" id="wcard" style="background:' + wcBg(w) + '"><div class="wpat"></div>' +
     '<div class="wbal">' + wcBalHtml(total) + '</div>' + (usd > 0 ? '<div class="wusd">$' + nf(usd, 2) + '</div>' : '') +
     '<div class="wname">' + esc((U.username ? U.username : name).toUpperCase()) + '</div>' +
     '<div class="wqr"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><path d="M14 14h2.5v2.5H14zM18 18h2.5v2.5H18z"/></svg></div>' +
@@ -1246,13 +1250,13 @@ function wcBind() {
   });
 }
 function wcExport() {
-  var w = WC(), th = WC_TH[w.theme], W = 1280, H = 737, total = 0;
+  var w = WC(), th = wcCols(), W = 1280, H = 737, total = 0;
   S.prof.items.forEach(function (it) { var g = giftById(it.gid); if (g) total += g.floor * it.qty; });
-  var jobs = w.stk.map(function (st) { var g = giftById(st.gid); return g ? loadImgTry(Gifts.exportImgs(g, null)) : Promise.resolve(null); });
+  var jobs = w.stk.map(function (st) { var g = giftById(st.gid); return g ? loadImgTry(Gifts.exportImgs(g, st.m || null)) : Promise.resolve(null); });
   modal('<div class="loading">' + t('generating') + '</div>');
   Promise.all(jobs).then(function (imgs) {
     var cv = document.createElement('canvas'); cv.width = W; cv.height = H; var c = cv.getContext('2d');
-    var gr = c.createLinearGradient(0, 0, W, H); gr.addColorStop(0, th[0]); gr.addColorStop(0.55, th[1]); gr.addColorStop(1, th[0]);
+    var gr; if (w.c) { gr = c.createRadialGradient(W * 0.38, H * 0.45, 20, W * 0.38, H * 0.45, W * 0.85); gr.addColorStop(0, th[1]); gr.addColorStop(1, th[0]); } else { gr = c.createLinearGradient(0, 0, W, H); gr.addColorStop(0, th[0]); gr.addColorStop(0.55, th[1]); gr.addColorStop(1, th[0]); }
     rr(c, 0, 0, W, H, 70); c.save(); c.clip(); c.fillStyle = gr; c.fillRect(0, 0, W, H);
     c.fillStyle = 'rgba(255,255,255,.07)'; for (var y = 40; y < H; y += 110) for (var x = ((y / 110) % 2) * 80 + 40; x < W; x += 160) { c.beginPath(); c.arc(x, y, 9, 0, 6.2832); c.fill(); }
     var sh = c.createLinearGradient(0, 0, W, 0); sh.addColorStop(0, 'rgba(255,255,255,0)'); sh.addColorStop(0.45, 'rgba(255,255,255,.10)'); sh.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = sh; c.fillRect(0, 0, W, H);
@@ -1530,7 +1534,22 @@ var A = {
     workerPost('/api/subs', { action: 'list' }).then(paintSubList);
   },
   wcedit: function () { S.wcEdit = !S.wcEdit; S.wcSel = S.wcEdit && WC().stk.length ? WC().stk.length - 1 : null; paintProfile(); },
-  wctheme: function () { var w = WC(), k = Object.keys(WC_TH); w.theme = k[(k.indexOf(w.theme) + 1) % k.length]; wcSave(); paintProfile(); },
+  wctheme: function () {
+    bdColors().then(function () {
+      var w = WC(), sw = function (act, v, c1, c2, name, on) { return '<button class="wsw' + (on ? ' on' : '') + '" data-act="' + act + '" data-v="' + esc(v) + '"><i style="background:radial-gradient(circle at 38% 40%,' + c2 + ',' + c1 + ' 85%)"></i><small>' + esc(name) + '</small></button>'; };
+      var cur = w.c ? (w.bd || '') : '', all = {}; Object.keys(WC_BLK).forEach(function (k) { all[k] = WC_BLK[k].slice().reverse(); }); Object.keys(BDMAP).forEach(function (k) { all[k] = [BDMAP[k][1], BDMAP[k][0]]; });
+      var cap = function (s) { return s.replace(/\b\w/g, function (m) { return m.toUpperCase(); }); };
+      var bds = Object.keys(all).sort().map(function (k) { return sw('wccolor', 'bd:' + k, all[k][0], all[k][1], cap(k), cur === k); }).join('');
+      var ths = Object.keys(WC_TH).map(function (k) { return sw('wccolor', 'th:' + k, WC_TH[k][0], WC_TH[k][1], cap(k), !w.c && w.theme === k); }).join('');
+      modal('<h3>' + t('wc_color') + '</h3><div class="wsws">' + ths + bds + '</div><div class="btns"><button class="btn ghost" data-act="mclose">' + t('done') + '</button></div>');
+    });
+  },
+  wccolor: function (v) {
+    var w = WC(), p = String(v).split(':'), k = p.slice(1).join(':');
+    if (p[0] === 'th') { w.theme = k; delete w.c; delete w.bd; }
+    else { var pair = BDMAP[k] ? [BDMAP[k][1], BDMAP[k][0]] : WC_BLK[k] ? WC_BLK[k].slice().reverse() : null; if (!pair) return; w.c = [pair[0], pair[1], wcMix(pair[1], 0.4)]; w.bd = k; }
+    wcSave(); closeModal(); paintProfile();
+  },
   wcadd: function () {
     getGifts().then(function (list) {
       modal('<h3>' + t('wc_sticker') + '</h3><div class="search">' + ICON.search + '<input id="wc_q" placeholder="' + esc(t('search_gifts')) + '"></div><div class="grid wcg" id="wc_g"></div><div class="btns"><button class="btn ghost" data-act="mclose">' + t('done') + '</button></div>');
@@ -1538,7 +1557,20 @@ var A = {
       paint(''); $('#wc_q').addEventListener('input', function () { paint(this.value); });
     });
   },
-  wcpick: function (v) { var w = WC(); w.stk.push({ gid: v, x: 76 - (w.stk.length % 3) * 8, y: 66 - (w.stk.length % 3) * 6, s: 26 }); S.wcSel = w.stk.length - 1; S.wcEdit = true; wcSave(); closeModal(); paintProfile(); },
+  wcpick: function (v) {
+    var g = giftById(v); if (!g) return; S.wcG = v;
+    modal('<div class="loading">' + t('loading') + '</div>');
+    Gifts.models(v).then(function (ms) {
+      S.wcMs = ms || [];
+      modal('<h3>' + esc(g.name) + ' · ' + t('gs_models') + '</h3><div class="grid wcg"><div class="cell" data-act="wcmodel" data-v="-1">' + gImg(g, null, 'lg sq big') + '<b>' + t('wc_nomodel') + '</b></div>' +
+        S.wcMs.slice(0, 120).map(function (m, i) { return '<div class="cell" data-act="wcmodel" data-v="' + i + '">' + gImg(g, m.name, 'lg sq big') + '<b>' + esc(m.name) + '</b></div>'; }).join('') +
+        '</div><div class="btns"><button class="btn ghost" data-act="mclose">' + t('done') + '</button></div>');
+    }).catch(function () { A.wcmodel('-1'); });
+  },
+  wcmodel: function (v) {
+    var w = WC(), i = +v, m = i >= 0 && S.wcMs && S.wcMs[i] ? S.wcMs[i].name : null, n = w.stk.length;
+    w.stk.push({ gid: S.wcG, m: m, x: 76 - (n % 3) * 8, y: 66 - (n % 3) * 6, s: 26 }); S.wcSel = n; S.wcEdit = true; wcSave(); closeModal(); paintProfile();
+  },
   wcbig: function () { var w = WC(), st = w.stk[S.wcSel]; if (st) { st.s = Math.min(80, st.s + 5); wcSave(); paintProfile(); } },
   wcsmall: function () { var w = WC(), st = w.stk[S.wcSel]; if (st) { st.s = Math.max(8, st.s - 5); wcSave(); paintProfile(); } },
   wcdel: function () { var w = WC(); if (S.wcSel != null && w.stk[S.wcSel]) { w.stk.splice(S.wcSel, 1); S.wcSel = w.stk.length ? w.stk.length - 1 : null; wcSave(); paintProfile(); } },

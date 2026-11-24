@@ -241,3 +241,6 @@ img{display:block}
 .wcb{margin:6px 0}
 .wcg{max-height:50vh;overflow:auto}
 .pacts.wcb{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:8px}.pacts.wcb button{min-width:0;padding:10px 4px;font-size:12px}
+.wsws{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-height:55vh;overflow:auto}
+.wsw{display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px;border-radius:10px;border:2px solid transparent}.wsw.on{border-color:var(--accent,#3b82f6)}
+.wsw i{width:100%;aspect-ratio:1.6;border-radius:10px;display:block;border:1px solid rgba(255,255,255,.15)}.wsw small{font-size:10px;text-align:center;line-height:1.1}
