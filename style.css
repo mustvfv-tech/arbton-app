@@ -213,3 +213,11 @@ img{display:block}
 .chwm .gem{width:1.05em;height:1.05em;opacity:.25;margin-inline-end:.25em;vertical-align:0}
 .tmwm .gem{width:1em;height:1em;vertical-align:-2px;margin-inline-end:3px}
 .ds{font-size:12px;color:var(--muted,#8e8e93);margin-top:1px}
+/* نتايج البحث: كروت أصغر زي Gift Satellite */
+.gsr{gap:6px}
+.gsc{width:70px}
+.gst{border-radius:10px}
+.gsn{top:2px;inset-inline-start:4px;font-size:9px}
+.gsp{padding-top:3px;font-size:11px}.gsp small{font-size:9.5px;line-height:1.25}
+.gsp .gem{width:11px;height:11px;margin-inline-end:2px}
+.gsp b{gap:1px}
