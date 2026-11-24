@@ -188,9 +188,8 @@ img{display:block}
 /* بحث الهدايا */
 .gsm{margin-bottom:10px}.gsm button{flex:1}
 .gsf{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.gsf select,.gsf input{width:100%;min-width:0;height:42px;border-radius:12px;background:var(--card2);color:var(--text);border:1px solid var(--line);padding:0 10px;font:inherit}
-.gsf select:first-child{grid-column:1/-1}.gsf input{grid-column:1/-1}
-.gsf select:disabled{opacity:.5}
+.gsf input{width:100%;min-width:0;height:42px;border-radius:12px;background:var(--card2);color:var(--text);border:1px solid var(--line);padding:0 10px;font:inherit}
+.gsf input{grid-column:1/-1}
 .gst{position:relative;border-radius:14px;overflow:hidden;aspect-ratio:1;background:var(--card2)}
 .gst .gsi{width:100%;height:100%;object-fit:contain;display:block}
 .gst.sm{width:52px;height:52px;flex:none;border-radius:12px}
@@ -203,3 +202,8 @@ img{display:block}
 
 .mki{width:16px;height:16px;border-radius:50%;object-fit:cover;vertical-align:-3px;margin-inline-end:5px;display:inline-block}
 .gsfl small .mki,.gsmk .mki{width:18px;height:18px}
+.gspick{display:flex;align-items:center;gap:8px;height:46px;border-radius:12px;background:var(--card2);color:var(--text);border:1px solid var(--line);padding:0 10px;font:inherit;min-width:0;text-align:start}
+.gspick.wide{grid-column:1/-1}.gspick.dis{opacity:.5}.gspick span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.gspick i{font-style:normal;color:var(--muted)}
+.gst.xs{width:30px;height:30px;flex:none;border-radius:8px}
+.gspl .gspr{align-items:center;gap:10px}.gspl .gsn2{flex:1}
+.gsfl b,.gsp b{display:inline-flex;align-items:center;justify-content:center;gap:2px}.gsfl .gem,.gsp .gem{width:15px;height:15px}
