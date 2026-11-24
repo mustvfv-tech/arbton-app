@@ -258,7 +258,7 @@
   const STEP = { '2h': 7200, '4h': 14400, '1d': 86400, '1w': 604800 };
   function bucketKey(t, tf) {
     if (tf === '1M') { const d = new Date(t * 1000); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000; }
-    const s = STEP[tf] || 86400; return Math.floor(t / s) * s;
+    const s = typeof tf === 'number' ? tf : (STEP[tf] || 86400); return Math.floor(t / s) * s;
   }
   // نقاط [{t,v}] مرتبة تصاعدياً → شموع. carry=true: افتتاح الشمعة = إغلاق اللي قبلها (للفلور المستمر)
   function toOHLC(pts, tf, carry) {
@@ -579,14 +579,19 @@
     json: function (p) { return dataGet(p); },
     hist: function (g) { return dataGet('h/' + norm(g.official || g.name) + '.json'); },
     sales: function (g) { return dataGet('sales/' + norm(g.official || g.name) + '.json'); },
+    // الفريمات زي المرجع: مدى زمني (1D…All) وكل مدى له حجم شمعة مناسب
     series: async function (g, o) {
-      if (o.mode === 'frag') return toCandles(g.points || [], o.tf === '1M' ? '1M' : o.tf === '1w' ? '1w' : '1d');
+      const R = { '1D': [86400, 1800], '1W': [604800, 7200], '1M': [2592000, 86400], '3M': [7776000, 86400], '6M': [15552000, 172800], '1Y': [31536000, 259200], 'All': [0, 0] };
+      const r = R[o.tf] || R['1M'], now = Math.floor(Date.now() / 1000), from = r[0] ? now - r[0] : 0;
+      const cut = pts => pts.filter(p => p.t >= from);
+      const stepFor = pts => r[1] || (pts.length && pts[pts.length - 1].t - pts[0].t > 5184000 ? 604800 : 86400);
+      if (o.mode === 'frag') { const c = toCandles(g.points || [], (o.tf === '1Y' || o.tf === 'All') ? '1w' : '1d'); return c.filter(x => x.time >= from); }
       if (o.mode === 'floor') {
-        const h = await G.hist(g);
-        return h ? toOHLC(floorPoints(h, o.market, o.model), o.tf, true) : [];
+        const h = await G.hist(g); if (!h) return [];
+        const pts = cut(floorPoints(h, o.market, o.model)); return toOHLC(pts, stepFor(pts), true);
       }
-      const s = await G.sales(g);
-      return s ? toOHLC(salesPoints(s, o.market, o.model), o.tf, false) : [];
+      const s = await G.sales(g); if (!s) return [];
+      const pts = cut(salesPoints(s, o.market, o.model)); return toOHLC(pts, stepFor(pts), false);
     },
     salesRows: async function (g, market, model) {
       const s = await G.sales(g);
