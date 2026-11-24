@@ -1398,7 +1398,7 @@ var A = {
   ansend: function () {
     var c = S.cp; if (!c || !c.analyze || S.anBusy) return; S.anBusy = true;
     var b = $('#an_go'); if (b) { b.disabled = true; b.textContent = t('an_sending'); }
-    workerPost('/api/analyze', { symbol: c.analyze.symbol, tf: S.an.tf, kind: S.an.kind }).then(function (r) {
+    workerPost('/api/analyze', { symbol: c.analyze.symbol, tf: S.an.tf, kind: S.an.kind, lang: S.lang }).then(function (r) {
       S.anBusy = false; closeModal();
       toast(r && r.ok ? t('an_ok') : t(r && r.error === 'nopair' ? 'an_nopair' : r && r.error === 'limit' ? 'an_limit' : 'an_fail') + (r && r.detail ? ' [' + r.detail + ']' : (r ? '' : ' [no response]')));
     }, function () { S.anBusy = false; closeModal(); toast(t('an_fail')); });
