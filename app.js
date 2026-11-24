@@ -296,6 +296,7 @@ function chartPage(cfg) {
     (cfg.models ? '<button class="chip" data-act="cpmodels">' + t('models') + '</button>' : '') +
     '<button class="ib" data-act="share">' + ICON.share + '</button>' +
     '<button class="ib" data-act="dl">' + ICON.dl + '</button>' +
+    (cfg.analyze && workerOn() ? '<button class="chip" data-act="pan">' + t('an_btn') + '</button>' : '') +
     (cfg.alertName && workerOn() ? '<button class="ib" data-act="palert">' + ICON.bell + '</button>' : '') +
     (cfg.isFav ? '<button class="ib ' + (fav ? 'on' : '') + '" id="favbtn" data-act="fav">' + (fav ? ICON.heartF : ICON.heart) + '</button>' : '') +
     '</div>' +
@@ -494,7 +495,7 @@ function vCoin(tok) {
       tfs: CTFS, tf: '1h', fname: c.symbol,
       fetch: function (tf) { return Crypto.candles(c.symbol, c.id, tf); },
       isFav: function () { return S.favC.indexOf(c.id) >= 0; }, toggleFav: function () { toggle(S.favC, c.id, 'favC'); },
-      alertName: c.name, alertCoin: { id: c.id, name: c.name, symbol: c.symbol },
+      alertName: c.name, alertCoin: { id: c.id, name: c.name, symbol: c.symbol }, analyze: { symbol: c.symbol },
       shareText: c.name + ' — $' + fmtPrice(c.current_price),
       overview: [
         [t('rank'), '#' + (c.market_cap_rank || '—')], [t('market_cap'), '$' + fmtBig(c.market_cap)], [t('volume'), '$' + fmtBig(c.total_volume)],
@@ -1382,6 +1383,25 @@ var A = {
         .then(function (r) { toast(r && r.ok ? t('sent_ok') : t('send_fail')); });
     };
     rd.readAsDataURL(b);
+  },
+  pan: function () {
+    var c = S.cp; if (!c || !c.analyze) return; S.an = S.an || { kind: 'analysis', tf: '4h' };
+    var seg = function (act, cur, arr) { return '<div class="seg">' + arr.map(function (x) { return '<button data-act="' + act + '" data-v="' + x[0] + '" class="' + (cur === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '</div>'; };
+    modal('<h3>' + t('an_title') + ' · ' + esc(c.analyze.symbol.toUpperCase()) + '</h3>' +
+      '<div class="frow"><label>' + t('an_kind') + '</label>' + seg('ankind', S.an.kind, [['analysis', t('an_analysis')], ['signal', t('an_signal')]]) + '</div>' +
+      '<div class="frow"><label>' + t('an_tf') + '</label>' + seg('antf', S.an.tf, [['15m', '15m'], ['1h', '1h'], ['4h', '4h'], ['1d', '1d']]) + '</div>' +
+      '<p class="muted" style="font-size:12px;margin:8px 0">' + t('an_note') + '</p>' +
+      '<div class="btns"><button class="btn ghost" data-act="mclose">' + t('done') + '</button><button class="btn" id="an_go" data-act="ansend">' + t('an_send') + '</button></div>');
+  },
+  ankind: function (v) { S.an.kind = v; A.pan(); },
+  antf: function (v) { S.an.tf = v; A.pan(); },
+  ansend: function () {
+    var c = S.cp; if (!c || !c.analyze || S.anBusy) return; S.anBusy = true;
+    var b = $('#an_go'); if (b) { b.disabled = true; b.textContent = t('an_sending'); }
+    workerPost('/api/analyze', { symbol: c.analyze.symbol, tf: S.an.tf, kind: S.an.kind }).then(function (r) {
+      S.anBusy = false; closeModal();
+      toast(r && r.ok ? t('an_ok') : t(r && r.error === 'nopair' ? 'an_nopair' : r && r.error === 'limit' ? 'an_limit' : 'an_fail'));
+    }, function () { S.anBusy = false; closeModal(); toast(t('an_fail')); });
   },
   palert: function () {
     var c = S.cp, name = c && c.alertName; if (!name) return;
