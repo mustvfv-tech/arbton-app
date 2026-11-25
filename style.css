@@ -244,3 +244,16 @@ img{display:block}
 .wsws{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-height:55vh;overflow:auto}
 .wsw{display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px;border-radius:10px;border:2px solid transparent}.wsw.on{border-color:var(--accent,#3b82f6)}
 .wsw i{width:100%;aspect-ratio:1.6;border-radius:10px;display:block;border:1px solid rgba(255,255,255,.15)}.wsw small{font-size:10px;text-align:center;line-height:1.1}
+.arb{display:flex;align-items:center;gap:10px;padding:10px;margin:6px 0;border-radius:14px;background:var(--card);cursor:pointer}
+.arb .ai{width:52px;flex:none}.arb .ai img{width:52px;height:52px;object-fit:contain}.arb .ab{flex:1;min-width:0;font-size:12px}.arb .ab>b{font-size:14px;display:block;margin-bottom:2px}
+.arb .al{display:flex;align-items:center;gap:4px;flex-wrap:wrap;line-height:1.5}.arb .al span{color:var(--muted);min-width:34px}.arb .al .mki{width:14px;height:14px}
+.arb .ar{text-align:end;display:flex;flex-direction:column;gap:2px;flex:none}.arb .ar b{font-size:16px}.arb .ar small{font-size:11px}
+.arbf{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);flex:1}.arbf input{width:100%}
+.fng{background:var(--card);border-radius:16px;padding:12px 14px;margin:8px 0}
+.fngv{font-size:30px;font-weight:800;line-height:1.1;display:flex;align-items:baseline;gap:8px}.fngv span{font-size:14px;font-weight:700}
+.fngbar{position:relative;height:8px;border-radius:6px;margin:10px 0 8px;background:linear-gradient(90deg,#ea3943,#ea8c00 35%,#c8b400 50%,#93d900 70%,#16c784)}
+.fngbar i{position:absolute;top:-4px;width:4px;height:16px;border-radius:3px;background:#fff;box-shadow:0 0 0 2px rgba(0,0,0,.45);transform:translateX(-50%)}
+.fngr{display:flex;justify-content:space-between;gap:10px}.fngr small{display:block;color:var(--muted);font-size:11px}.fngr b{font-size:13px}
+.news{display:flex;gap:10px;padding:10px;margin:6px 0;border-radius:14px;background:var(--card);cursor:pointer}
+.news img{width:78px;height:78px;object-fit:cover;border-radius:10px;flex:none}.news .nb{flex:1;min-width:0}.news .nb>b{font-size:14px;line-height:1.35;display:block;margin-bottom:6px}
+.news .nm{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);flex-wrap:wrap}.news .nsrc{color:var(--accent);font-weight:700}

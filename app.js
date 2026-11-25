@@ -183,6 +183,7 @@ function render() {
     if (v.type === 'gift') return vGift(tok);
     if (v.type === 'sticker') return vSticker(tok);
     if (v.type === 'gsearch') return vGsearch(tok);
+    if (v.type === 'arb') return vArb(tok);
     if (v.type === 'models') return vModels(tok);
     if (v.type === 'portfolio') return vPortfolio(tok);
   }
@@ -399,6 +400,7 @@ function stockCandles(sym, tf) {
 }
 function vCrypto(tok) {
   var el = $('#view');
+  if (S.c.kind === 'news') return paintNews();
   if (S.c.kind === 'stock') {
     el.innerHTML = loadingBox();
     return loadStocks().then(function () { if (tok === S.tok) paintCrypto(); }).catch(function () { if (tok === S.tok) el.innerHTML = '<div class="empty"><p>' + t('stocks_wait') + '</p></div>'; });
@@ -414,7 +416,53 @@ function vCrypto(tok) {
     if (S.cache.coins) paintCrypto(); else el.innerHTML = errBox();
   });
 }
+/* ---------- الخوف والطمع + الأخبار ---------- */
+function fngColor(v) { return v < 25 ? '#ea3943' : v < 45 ? '#ea8c00' : v < 56 ? '#c8b400' : v < 76 ? '#93d900' : '#16c784'; }
+function loadFng() {
+  if (S.cache.fng && Date.now() - S.cache.fngT < 600000) return Promise.resolve(S.cache.fng);
+  return fetch('https://api.alternative.me/fng/?limit=8').then(function (r) { return r.json(); }).then(function (j) {
+    var d = j && j.data; if (!d || !d.length) throw 0; S.cache.fng = d; S.cache.fngT = Date.now(); return d;
+  });
+}
+function fngLbl(v) { return t(v < 25 ? 'fng_xf' : v < 45 ? 'fng_f' : v < 56 ? 'fng_n' : v < 76 ? 'fng_g' : 'fng_xg'); }
+function paintFng() {
+  var box = $('#fng'); if (!box) return;
+  loadFng().then(function (d) {
+    box = $('#fng'); if (!box) return;
+    var v = +d[0].value, row = function (k, x) { return x ? '<div><small>' + t(k) + '</small><b style="color:' + fngColor(+x.value) + '">' + x.value + ' · ' + fngLbl(+x.value) + '</b></div>' : ''; };
+    box.innerHTML = '<div class="fng"><div class="fngt"><div><small>' + t('fng_title') + '</small><div class="fngv" style="color:' + fngColor(v) + '">' + v + '<span>' + fngLbl(v) + '</span></div></div></div>' +
+      '<div class="fngbar"><i style="left:' + v + '%"></i></div><div class="fngr">' + row('fng_yday', d[1]) + row('fng_week', d[7]) + '</div></div>';
+  }).catch(function () { box.innerHTML = ''; });
+}
+function agoTxt(ms) {
+  var m = Math.round((ms - Date.now()) / 60000), f;
+  try { f = new Intl.RelativeTimeFormat(S.lang === 'ar' ? 'ar' : S.lang === 'ru' ? 'ru' : 'en', { numeric: 'auto' }); } catch (e) { return ''; }
+  if (m > -60) return f.format(Math.min(0, m), 'minute'); if (m > -1440) return f.format(Math.round(m / 60), 'hour'); return f.format(Math.round(m / 1440), 'day');
+}
+function openExt(u) { try { if (tg && tg.openLink) return tg.openLink(u); } catch (e) {} window.open(u, '_blank'); }
+function loadNews() {
+  if (S.cache.news && Date.now() - S.cache.newsT < 240000) return Promise.resolve(S.cache.news);
+  return Gifts.json('news.json').then(function (j) { if (!j || !j.items) throw 0; S.cache.news = j; S.cache.newsT = Date.now(); return j; });
+}
+function newsListHtml(j) {
+  var src = S.c.nsrc || '', items = j.items.filter(function (x) { return !src || x.s === src; });
+  var srcs = []; j.items.forEach(function (x) { if (srcs.indexOf(x.s) < 0) srcs.push(x.s); });
+  return '<div class="tabs"><button class="' + (!src ? 'on' : '') + '" data-act="nsrc" data-v="">' + t('all') + '</button>' + srcs.map(function (s) { return '<button class="' + (src === s ? 'on' : '') + '" data-act="nsrc" data-v="' + esc(s) + '">' + esc(s) + '</button>'; }).join('') + '</div>' +
+    items.slice(0, 60).map(function (x) {
+      return '<div class="news" data-act="nopen" data-v="' + esc(x.u) + '">' + (x.i ? '<img src="' + esc(Gifts.thumb(x.i, 200, 'webp')) + '" loading="lazy" alt="">' : '') +
+        '<div class="nb"><b dir="auto">' + esc(x.t) + '</b><div class="nm"><span class="nsrc">' + esc(x.s) + '</span><span>' + esc(agoTxt(x.d)) + '</span>' + (S.lang === 'ar' ? '<button class="chip" data-act="ntr" data-v="' + esc(x.u) + '">' + t('news_tr') + '</button>' : '') + '</div></div></div>';
+    }).join('') + '<div class="note">' + t('news_note') + '</div>';
+}
+function paintNews() {
+  $('#view').innerHTML = '<div class="mrow">' + ckSeg('news') + '</div><div id="news_box">' + loadingBox() + '</div>';
+  loadNews().then(function (j) { var b = $('#news_box'); if (b && S.tab === 'crypto' && S.c.kind === 'news') b.innerHTML = newsListHtml(j); }).catch(function () { var b = $('#news_box'); if (b) b.innerHTML = '<div class="empty"><p>' + t('news_wait') + '</p></div>'; });
+}
+function ckSeg(kind) {
+  var b = function (v, l) { return '<button class="' + (kind === v ? 'on' : '') + '" data-act="ckind" data-v="' + v + '" style="flex:1">' + l + '</button>'; };
+  return '<div class="seg" style="flex:1">' + b('coin', t('coins')) + b('stock', t('stocks')) + b('news', t('news')) + '</div>';
+}
 function paintCrypto() {
+  if (S.c.kind === 'news') return paintNews();
   var c = S.c, g = S.cache.glob;
   var tabs = [['all', ICON.chartI.replace('<svg', '<svg').replace('M3 17l6-6 4 4 8-9', 'M3 17l6-6 4 4 8-9'), t('all')], ['hot', ICON.fire, t('hot')], ['fav', ICON.heartS, t('favorites')], ['gain', ICON.up, t('gainers')], ['loss', ICON.down, t('losers')]];
   var sum = '';
@@ -427,7 +475,7 @@ function paintCrypto() {
   var stock = S.c.kind === 'stock';
   if (stock) sum = '';
   $('#view').innerHTML =
-    '<div class="mrow"><div class="seg" style="flex:1"><button class="' + (!stock ? 'on' : '') + '" data-act="ckind" data-v="coin" style="flex:1">' + t('coins') + '</button><button class="' + (stock ? 'on' : '') + '" data-act="ckind" data-v="stock" style="flex:1">' + t('stocks') + '</button></div></div>' +
+    '<div class="mrow">' + ckSeg(stock ? 'stock' : 'coin') + '</div>' + (stock ? '' : '<div id="fng"></div>') +
     '<div class="tabs">' + tabs.map(function (x) { return '<button class="' + (c.tab === x[0] ? 'on' : '') + '" data-act="ctab" data-v="' + x[0] + '">' + x[1] + x[2] + '</button>'; }).join('') + '</div>' +
     '<div class="bar"><label class="search">' + ICON.search + '<input id="q" value="' + esc(c.q) + '" placeholder="' + t(stock ? 'search_stocks' : 'search_coins') + '"></label>' +
     '<button class="ib" data-act="csort">' + ICON.sort + '</button>' +
@@ -435,7 +483,7 @@ function paintCrypto() {
     '<button class="ib ' + (c.grid && !c.map ? 'act' : '') + '" data-act="cview" data-v="grid">' + ICON.grid + '</button>' +
     '<button class="ib ' + (c.map ? 'act' : '') + '" data-act="cview" data-v="map">' + ICON.tmap + '</button></div>' +
     (c.map ? '' : sum) + '<div id="list"></div>';
-  paintCryptoList();
+  paintCryptoList(); if (!stock) paintFng();
 }
 function coinList() {
   var c = S.c, L = curList().slice();
@@ -676,6 +724,38 @@ function gsTile(col, model, bd, cls) {
   return '<div class="gst ' + (cls || '') + '" data-bd="' + esc(String(bd || '').toLowerCase()) + '">' + (g ? gImg(g, model || null, 'gsi') : '') + '</div>';
 }
 function gsUsd(ton) { return ton * (Gifts.tonUsd || 0); }
+/* ---------- رادار فروق الأسعار بين الأسواق ---------- */
+function arbS() { return S.arb || (S.arb = store.get('arb', { fee: '5', min: '10' })); }
+function arbRows() {
+  var s = arbS(), fee = Math.max(0, parseFloat(s.fee) || 0), mn = parseFloat(s.min) || 0, out = [];
+  (S.cache.gifts || []).forEach(function (g) {
+    var m = g.markets || {}, e = Object.keys(m).filter(function (k) { return m[k] && m[k].p > 0; }).map(function (k) { return { k: k, p: m[k].p, n: m[k].n, s: m[k].s }; });
+    if (e.length < 2) return;
+    e.sort(function (x, y) { return x.p - y.p; });
+    var buy = e[0], sell = e[e.length - 1]; if (buy.p < mn) return;
+    var spread = (sell.p - buy.p) / buy.p * 100, net = (sell.p * (1 - fee / 100) - buy.p) / buy.p * 100;
+    out.push({ g: g, buy: buy, sell: sell, spread: spread, net: net, profit: sell.p * (1 - fee / 100) - buy.p });
+  });
+  return out.sort(function (a, b) { return b.net - a.net; });
+}
+function arbListHtml() {
+  var L = arbRows().slice(0, 60); if (!L.length) return '<div class="empty">' + t('arb_none') + '</div>';
+  return L.map(function (r) {
+    return '<div class="arb" data-act="gift" data-v="' + r.g.id + '"><div class="ai">' + gImg(r.g, null, 'lg sq') + '</div><div class="ab"><b>' + esc(r.g.name) + '</b>' +
+      '<div class="al"><span>' + t('arb_buy') + '</span> ' + mkTag(r.buy.k, G_MK(r.buy.k)) + ' · <b>' + GEM + nf(r.buy.p, 2) + '</b></div>' +
+      '<div class="al"><span>' + t('arb_sell') + '</span> ' + mkTag(r.sell.k, G_MK(r.sell.k)) + ' · <b>' + GEM + nf(r.sell.p, 2) + '</b></div></div>' +
+      '<div class="ar ' + (r.net > 0 ? 'up-t' : 'down-t') + '"><b>' + (r.net > 0 ? '+' : '') + r.net.toFixed(1) + '%</b><small>' + (r.profit > 0 ? '+' : '') + nf(r.profit, 2) + '</small><small class="mu">' + t('arb_gap') + ' ' + r.spread.toFixed(1) + '%</small></div></div>';
+  }).join('');
+}
+function G_MK(k) { return (Gifts.marketLabel || {})[k] || k; }
+function vArb(tok) { $('#view').innerHTML = loadingBox(); getGifts().then(function () { if (tok === S.tok) paintArb(); }); }
+function paintArb() {
+  var s = arbS();
+  $('#view').innerHTML = '<div class="dhead"><button class="ib" data-act="back">' + ICON.back + '</button><div class="dn" style="flex:1;text-align:center;margin-inline-end:36px">' + t('arb_title') + '</div></div>' +
+    '<div class="note">' + t('arb_note') + '</div>' +
+    '<div class="gsf"><label class="arbf">' + t('arb_fee') + '<input id="arb_fee" type="number" inputmode="decimal" min="0" step="any" value="' + esc(s.fee) + '"></label><label class="arbf">' + t('arb_min') + '<input id="arb_min" type="number" inputmode="decimal" min="0" step="any" value="' + esc(s.min) + '"></label></div>' +
+    '<div id="arb_list">' + arbListHtml() + '</div>';
+}
 function vGsearch(tok) {
   $('#view').innerHTML = loadingBox();
   Promise.all([getGifts(), gsCols()]).then(function () { if (tok === S.tok) paintGsearch(); });
@@ -782,7 +862,7 @@ function paintGifts() {
   var special = g.tab === 'deals' || g.tab === 'top';
   $('#view').innerHTML =
     badge +
-    '<div class="tabs"><button data-act="gsrch" data-v="' + (g.tab === 'top' ? 'sales' : 'list') + '" style="color:var(--accent)">' + ICON.search + t('adv_search') + '</button>' + tabs.map(function (x) { return '<button class="' + (g.tab === x[0] ? 'on' : '') + '" data-act="gtab" data-v="' + x[0] + '">' + x[1] + x[2] + '</button>'; }).join('') + '</div>' +
+    '<div class="tabs"><button data-act="gsrch" data-v="' + (g.tab === 'top' ? 'sales' : 'list') + '" style="color:var(--accent)">' + ICON.search + t('adv_search') + '</button><button data-act="arb" style="color:var(--accent)">📡 ' + t('arb_title') + '</button>' + tabs.map(function (x) { return '<button class="' + (g.tab === x[0] ? 'on' : '') + '" data-act="gtab" data-v="' + x[0] + '">' + x[1] + x[2] + '</button>'; }).join('') + '</div>' +
     (special ? '' : '<div class="bar"><label class="search">' + ICON.search + '<input id="q" value="' + esc(g.q) + '" placeholder="' + t('search_gifts') + '"></label>' +
     '<button class="ib ' + (S.gs.sort !== 'floor_d' || S.gs.min !== '' || S.gs.max !== '' ? 'act' : '') + '" data-act="gsort">' + ICON.sort + '</button>' +
     '<button class="ib ' + (g.map ? 'act' : '') + '" data-act="gmap">' + (g.map ? ICON.list : ICON.grid) + '</button></div>' + sumHtml + '<div id="mstat"></div>') + '<div id="glist"></div>';
@@ -1399,6 +1479,9 @@ var A = {
   sttab: function (v) { S.st.tab = v; paintStickers(); },
   stview: function (v) { S.st.map = v === 'map'; paintStickers(); },
   ckind: function (v) { S.c.kind = v; S.c.tab = 'all'; S.c.q = ''; S.c.map = S.c.map; vCrypto(S.tok); },
+  nsrc: function (v) { S.c.nsrc = v; var b = $('#news_box'); if (b && S.cache.news) b.innerHTML = newsListHtml(S.cache.news); },
+  nopen: function (v) { openExt(v); },
+  ntr: function (v) { openExt('https://translate.google.com/translate?sl=auto&tl=ar&u=' + encodeURIComponent(v)); },
   ctab: function (v) { S.c.tab = v; paintCrypto(); },
   cview: function (v) { S.c.grid = v === 'grid'; S.c.map = v === 'map'; paintCrypto(); },
   mshare: function () {
@@ -1616,6 +1699,7 @@ var A = {
   },
   gretry: function () { Gifts.reset(); S.cache.gifts = null; render(); },
   gtab: function (v) { S.g.tab = v; paintGifts(); },
+  arb: function () { go({ type: 'arb' }); },
   gsrch: function (v) { gsS().mode = v === 'sales' ? 'sales' : 'list'; go({ type: 'gsearch' }); },
   gsmode: function (v) { gsS().mode = v; paintGsearch(); },
   gsgo: function () {
@@ -1731,6 +1815,7 @@ document.addEventListener('input', function (e) {
     else if (S.tab === 'stickers' && !S.view) { S.st.q = e.target.value; paintStickerList(); }
   } else if (e.target.id === 'pq') paintPicker(e.target.value);
   else if (e.target.id === 'gsq') { var q = e.target.value.toLowerCase().trim(); document.querySelectorAll('#modal .gspr[data-q]').forEach(function (b) { b.style.display = !q || b.dataset.q.indexOf(q) >= 0 ? '' : 'none'; }); }
+  else if (e.target.id === 'arb_fee' || e.target.id === 'arb_min') { var as = arbS(); as.fee = $('#arb_fee').value; as.min = $('#arb_min').value; store.set('arb', as); var al = $('#arb_list'); if (al) al.innerHTML = arbListHtml(); }
   else if (e.target.id === 'gs_n') gsS().num = e.target.value.replace(/[^A-Za-z0-9]/g, '').slice(0, 6);
   else if (e.target.id && e.target.id.indexOf('cc_') === 0) calcUpdate(e.target.id);
 });
