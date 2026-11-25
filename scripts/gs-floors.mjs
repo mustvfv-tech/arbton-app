@@ -6,7 +6,7 @@ const BASE = (process.env.GS_BASE || "https://gift-satellite.dev/api").replace(/
 const TOKEN = process.env.GS_TOKEN;
 const OUT = process.env.OUT_DIR || "data";
 const FAST = !!process.env.GS_FAST; // للاختبار المحلي فقط
-const MAX_POINTS = 700;             // ~14 يوم كل 30 دقيقة
+// تاريخ الفلور بيتضغط تلقائياً (شوف قسم ضغط التاريخ تحت)
 const norm = x => String(x).toLowerCase().replace(/[^a-z0-9]/g, "");
 if (!TOKEN) { console.error("GS_TOKEN غير موجود"); process.exit(1); }
 
@@ -104,10 +104,18 @@ for (const name of names) {
     const arr = h.md[mn] || (h.md[mn] = new Array(h.t.length - 1).fill(null));
     arr.push(models[mn] ? models[mn].p : null);
   }
-  if (h.t.length > MAX_POINTS) {
-    const k = h.t.length - MAX_POINTS;
-    for (const key of Object.keys(h)) if (key !== "md") h[key] = h[key].slice(k);
-    for (const mn of Object.keys(h.md)) h.md[mn] = h.md[mn].slice(k);
+  { // ضغط التاريخ: آخر يومين كامل، 30 يوم بنقطة كل ساعة، وبعدها نقطة كل 6 ساعات لحد ~13 شهر
+    const keep = [], seen = new Set();
+    for (let i = 0; i < h.t.length; i++) {
+      const age = now - h.t[i]; if (age > 400 * 86400) continue;
+      const b = age <= 2 * 86400 ? "f" + i : age <= 30 * 86400 ? "h" + Math.floor(h.t[i] / 3600) : "s" + Math.floor(h.t[i] / 21600);
+      if (!seen.has(b)) { seen.add(b); keep.push(i); }
+    }
+    if (keep.length !== h.t.length) {
+      const pick = a => keep.map(i => a[i]);
+      for (const key of Object.keys(h)) if (key !== "md") h[key] = pick(h[key]);
+      for (const mn of Object.keys(h.md)) h.md[mn] = pick(h.md[mn]);
+    }
   }
   for (const mn of Object.keys(h.md)) if (h.md[mn].every(v => v == null)) delete h.md[mn];
   fs.writeFileSync(hf, JSON.stringify(h));
