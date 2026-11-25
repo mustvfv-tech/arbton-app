@@ -659,7 +659,8 @@ var STAR_USD = 0.015, BDMAP = {}, BDP = null;
 var GS_MKN = { portals: 'Portals', mrkt: 'MRKT', tonnel: 'Tonnel', onchain: 'On-chain', tg: 'Telegram' };
 function mkIc(k) { var u = MKI[k === 'onchain' ? 'getgems' : k]; return u ? '<img class="mki" src="' + u + '" alt="">' : ''; }
 function mkTag(k, name) { return mkIc(k) + esc(name || k); }
-function gsS() { return S.gsr || (S.gsr = { mode: 'list', col: '', m: '', bd: '', sym: '', num: '', attrs: null, res: null, rows: [], page: 0, pages: 0, busy: false, err: '' }); }
+function gsS() { return S.gsr || (S.gsr = { mode: 'list', col: '', m: [], bd: [], sym: [], num: '', attrs: null, res: null, rows: [], page: 0, pages: 0, busy: false, err: '' }); }
+function gsLbl(arr, ph) { return arr.length ? (arr.length === 1 ? arr[0] : arr[0] + ' +' + (arr.length - 1)) : ph; }
 function hx(v) { return typeof v === 'number' ? '#' + ('000000' + (v & 0xffffff).toString(16)).slice(-6) : (typeof v === 'string' ? (v.charAt(0) === '#' ? v : '#' + v) : null); }
 function bdColors() {
   return BDP || (BDP = fetch('https://api.changes.tg/backdrops').then(function (r) { return r.json(); }).then(function (a) {
@@ -686,9 +687,9 @@ function paintGsearch() {
     '<div class="seg gsm"><button class="' + (s.mode === 'list' ? 'on' : '') + '" data-act="gsmode" data-v="list">' + t('gs_prices') + '</button><button class="' + (s.mode === 'sales' ? 'on' : '') + '" data-act="gsmode" data-v="sales">' + t('gs_sales') + '</button></div>' +
     (workerOn() ? '' : '<div class="demo">' + t('gs_need_worker') + '</div>') +
     '<div class="gsf">' + gsPickBtn('col', s.col || t('gs_gift'), s.col ? gsTile(s.col, null, '', 'xs') : '', false) +
-    gsPickBtn('m', s.m || t('gs_models'), s.m && s.col ? gsTile(s.col, s.m, '', 'xs') : '', !s.col) +
-    gsPickBtn('bd', s.bd || t('gs_bds'), s.bd ? '<span class="gst xs" data-bd="' + esc(s.bd.toLowerCase()) + '"></span>' : '', !s.col) +
-    gsPickBtn('sym', s.sym || t('gs_syms'), '', !s.col) +
+    gsPickBtn('m', gsLbl(s.m, t('gs_models')), s.m.length && s.col ? gsTile(s.col, s.m[0], '', 'xs') : '', !s.col) +
+    gsPickBtn('bd', gsLbl(s.bd, t('gs_bds')), s.bd.length ? '<span class="gst xs" data-bd="' + esc(s.bd[0].toLowerCase()) + '"></span>' : '', !s.col) +
+    gsPickBtn('sym', gsLbl(s.sym, t('gs_syms')), '', !s.col) +
     '<input id="gs_n" maxlength="6" value="' + esc(s.num) + '" placeholder="' + esc(t('gs_num')) + '"></div>' +
     '<button class="btn" data-act="gsgo" style="width:100%;margin:10px 0 6px">' + t('gs_go') + '</button>' + (workerOn() ? '<button class="btn ghost" data-act="gssub" style="width:100%;margin:0 0 10px">🔔 ' + t('sub_btn') + '</button>' : '') + '<div id="gsres"></div>' +
     '<div class="note">Data: Gift Satellite · Thanks to @GiftChanges for the API · ⭐ ≈ $' + STAR_USD + '</div>';
@@ -704,10 +705,10 @@ function gsPickRows(kind) {
   var s = gsS(), a = s.attrs || {}, list, ph = { col: null, m: t('gs_models'), bd: t('gs_bds'), sym: t('gs_syms') }[kind];
   if (kind === 'col') list = S.gscols && S.gscols.length ? S.gscols : (S.cache.gifts || []).map(function (x) { return x.name; }).sort();
   else list = ((kind === 'm' ? a.models : kind === 'bd' ? a.backdrops : (a.patterns || a.symbols)) || []).map(function (x) { return x.name; });
-  var cur = s[kind], h = ph ? '<button class="opt gspr' + (cur ? '' : ' on') + '" data-act="gspsel" data-v="' + kind + '" data-n=""><span>' + esc(ph) + '</span></button>' : '';
+  var cur = kind === 'col' ? [s.col] : s[kind], h = ph ? '<button class="opt gspr' + (cur.length ? '' : ' on') + '" data-act="gspsel" data-v="' + kind + '" data-n=""><span>' + esc(ph) + '</span></button>' : '';
   return h + list.map(function (n) {
     var ic = kind === 'col' ? gsTile(n, null, '', 'sm') : kind === 'm' ? gsTile(s.col, n, '', 'sm') : kind === 'bd' ? '<span class="gst sm" data-bd="' + esc(n.toLowerCase()) + '"></span>' : '';
-    return '<button class="opt gspr' + (n === cur ? ' on' : '') + '" data-act="gspsel" data-v="' + kind + '" data-n="' + esc(n) + '" data-q="' + esc(n.toLowerCase()) + '">' + ic + '<span class="gsn2">' + esc(n) + '</span><span>' + (n === cur ? '✓' : '') + '</span></button>';
+    return '<button class="opt gspr' + (cur.indexOf(n) >= 0 ? ' on' : '') + '" data-act="gspsel" data-v="' + kind + '" data-n="' + esc(n) + '" data-q="' + esc(n.toLowerCase()) + '">' + ic + '<span class="gsn2">' + esc(n) + '</span><span>' + (cur.indexOf(n) >= 0 ? '✓' : '') + '</span></button>';
   }).join('');
 }
 function gsLoadAttrs() {
@@ -748,7 +749,7 @@ function paintGsRes() {
 }
 function gsFetchSales(page) {
   var s = gsS(); s.busy = true; s.err = ''; paintGsRes();
-  workerPost('/api/gs', { kind: 'history', collection: s.col, models: s.m ? [s.m] : [], backdrops: s.bd ? [s.bd] : [], symbols: s.sym ? [s.sym] : [], number: s.num, page: page, sortBy: 'date' }).then(function (r) {
+  workerPost('/api/gs', { kind: 'history', collection: s.col, models: s.m, backdrops: s.bd, symbols: s.sym, number: s.num, page: page, sortBy: 'date' }).then(function (r) {
     s.busy = false;
     if (!r || !r.ok) { s.err = t('gs_err'); } else { s.rows = (page ? s.rows : []).concat(r.data.rows || []); s.page = page + 1; s.pages = r.data.pages || 1; }
     paintGsRes();
@@ -1578,7 +1579,7 @@ var A = {
   subdel: function (v) { workerPost('/api/subs', { action: 'del', index: +v }).then(paintSubList); },
   gssub: function () {
     var s = gsS(); if (!s.col) { toast(t('gs_pick')); return; }
-    var f = [s.m ? t('gs_models') + ': ' + s.m : '', s.bd ? t('gs_bds') + ': ' + s.bd : '', s.sym ? t('gs_syms') + ': ' + s.sym : ''].filter(Boolean).join(' · ');
+    var f = [s.m.length ? t('gs_models') + ': ' + s.m.join(', ') : '', s.bd.length ? t('gs_bds') + ': ' + s.bd.join(', ') : '', s.sym.length ? t('gs_syms') + ': ' + s.sym.join(', ') : ''].filter(Boolean).join(' · ');
     modal('<h3>' + t('sub_title') + ' · ' + esc(s.col) + '</h3>' + (f ? '<div class="note">' + esc(f) + '</div>' : '') +
       '<div class="frow"><label>' + t('sub_price') + '</label><input id="sub_p" type="number" inputmode="decimal" min="0" step="any"></div>' +
       '<div class="note">' + t('sub_note') + '</div>' +
@@ -1586,7 +1587,7 @@ var A = {
   },
   gssubsave: function () {
     var s = gsS(), p = parseFloat($('#sub_p').value); if (!(p > 0)) return;
-    workerPost('/api/subs', { action: 'add', collection: s.col, models: s.m ? [s.m] : [], backdrops: s.bd ? [s.bd] : [], symbols: s.sym ? [s.sym] : [], price: p }).then(function (r) {
+    workerPost('/api/subs', { action: 'add', collection: s.col, models: s.m, backdrops: s.bd, symbols: s.sym, price: p }).then(function (r) {
       closeModal(); toast(r && r.ok ? t('sub_ok') : t(r && r.error === 'limit' ? 'sub_limit' : 'alert_fail'));
     });
   },
@@ -1619,7 +1620,7 @@ var A = {
     var s = gsS(); if (!s.col) { toast(t('gs_pick')); return; } if (!workerOn()) { toast(t('gs_need_worker')); return; }
     if (s.mode === 'sales') { gsFetchSales(0); return; }
     s.busy = true; s.err = ''; paintGsRes();
-    workerPost('/api/gs', { kind: 'search', collection: s.col, models: s.m ? [s.m] : [], backdrops: s.bd ? [s.bd] : [], symbols: s.sym ? [s.sym] : [], number: s.num }).then(function (r) {
+    workerPost('/api/gs', { kind: 'search', collection: s.col, models: s.m, backdrops: s.bd, symbols: s.sym, number: s.num }).then(function (r) {
       s.busy = false; if (!r || !r.ok) { s.err = t('gs_err') + (r && r.error ? ' (' + r.error + ')' : ''); s.res = null; } else { s.res = r.data; var ek = Object.keys(r.errs || {}); if (ek.length && ek.length === Object.keys(r.data).length) { s.err = t('gs_err') + ' (' + r.errs[ek[0]] + ')'; s.res = null; } } paintGsRes();
     });
   },
@@ -1627,15 +1628,20 @@ var A = {
   gspick: function (v, el) {
     if (el.classList.contains('dis')) return;
     var ttl = { col: t('gs_gift'), m: t('gs_models'), bd: t('gs_bds'), sym: t('gs_syms') }[v];
-    modal('<h3>' + esc(ttl) + '</h3><div class="search"><input id="gsq" placeholder="' + esc(t('adv_search')) + '" autocomplete="off"></div><div class="gspl">' + gsPickRows(v) + '</div>');
+    modal('<h3>' + esc(ttl) + '</h3><div class="search"><input id="gsq" placeholder="' + esc(t('adv_search')) + '" autocomplete="off"></div><div class="gspl">' + gsPickRows(v) + '</div>' + (v === 'col' ? '' : '<div class="btns"><button class="btn" data-act="gspdone">' + t('done') + '</button></div>'));
     applyBd();
   },
   gspsel: function (v, el) {
     var s = gsS(), n = el.dataset.n || '';
+    if (v !== 'col') { // اختيار متعدد: بنفضل في المودال ونحدّث العلامات
+      if (!n) s[v] = []; else { var ix = s[v].indexOf(n); if (ix >= 0) s[v].splice(ix, 1); else s[v].push(n); }
+      var gl = document.querySelector('#modal .gspl'); if (gl) { gl.innerHTML = gsPickRows(v); applyBd(); var qi = $('#gsq'); if (qi && qi.value) qi.dispatchEvent(new Event('input', { bubbles: true })); }
+      paintGsearch(); return;
+    }
     closeModal();
-    if (v === 'col') { s.col = n; s.m = s.bd = s.sym = ''; s.attrs = null; s.res = null; s.rows = []; s.page = 0; paintGsearch(); gsLoadAttrs(); return; }
-    s[v] = n; paintGsearch();
+    s.col = n; s.m = []; s.bd = []; s.sym = []; s.attrs = null; s.res = null; s.rows = []; s.page = 0; paintGsearch(); gsLoadAttrs();
   },
+  gspdone: function () { closeModal(); paintGsearch(); },
   gsopen: function (v) { if (!v) return; var u = 'https://t.me/nft/' + v; try { Telegram.WebApp.openTelegramLink(u); } catch (e) { window.open(u, '_blank'); } },
   gmap: function () { S.g.map = !S.g.map; paintGifts(); },
   gift: function (v) { go({ type: 'gift', id: v }); },
