@@ -1373,7 +1373,7 @@ function vSettings() {
     '<div class="card">' +
     '<div class="srow"><span class="si" style="background:#6d5dfc">' + ICON.brief + '</span><b>' + t('portfolio_summary') + '<small>' + t('portfolio_sub') + '</small></b>' + sw('portfolio') + '</div>' +
     '<div class="srow"><span class="si" style="background:#22c55e">' + ICON.bolt + '</span><b>' + t('pumps') + '<small>' + t('pumps_sub') + '</small></b>' + sw('pumps') + '</div></div>' +
-    '<div class="note">' + t('needs_server') + '</div>' +
+    (workerOn() ? '' : '<div class="note">' + t('needs_server') + '</div>') +
     '<div class="promos">' +
     '<button class="promo" data-act="grp" style="background:linear-gradient(135deg,var(--card),#7c4a1b55)"><span class="si" style="background:#f97316">' + ICON.users + '</span><b>' + t('to_group') + '</b><small>' + t('to_group_sub') + '</small></button>' +
     '<button class="promo" data-act="chn" style="background:linear-gradient(135deg,var(--card),#1b3f7c55)"><span class="si" style="background:#3b82f6">' + ICON.mega + '</span><b>' + t('to_channel') + '</b><small>' + t('to_channel_sub') + '</small></button></div>' +
