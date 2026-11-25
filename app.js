@@ -1294,6 +1294,16 @@ var WC_TH = {
 };
 var WC_BLK = { 'black': ['#3a3b3d', '#0c0c0d'], 'onyx black': ['#2b2b2e', '#000000'] };
 function wcMix(h, k) { var n = parseInt(h.slice(1), 16), r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255; return 'rgb(' + Math.round(r + (255 - r) * k) + ',' + Math.round(g + (255 - g) * k) + ',' + Math.round(b + (255 - b) * k) + ')'; }
+function wcTotal(assets) { var w = WC(); return w.src === 'wallet' && w.addr && S.wcBal != null ? S.wcBal : assets; }
+function wcFetchBal() {
+  var w = WC(); if (w.src !== 'wallet' || !w.addr) return;
+  if (S.wcBalT && Date.now() - S.wcBalT < 30000 && S.wcBalA === w.addr) return;
+  S.wcBalT = Date.now(); S.wcBalA = w.addr;
+  fetch('https://tonapi.io/v2/accounts/' + encodeURIComponent(w.addr)).then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (j) {
+    S.wcBal = (+j.balance || 0) / 1e9; S.wcErr = false;
+    var b = $('.wbal'), u = $('.wusd'); if (b) b.innerHTML = wcBalHtml(S.wcBal); if (u && Gifts.tonUsd > 0) u.textContent = '$' + nf(S.wcBal * Gifts.tonUsd, 2);
+  }).catch(function () { S.wcErr = true; S.wcBalT = 0; });
+}
 function wcCols() { var w = WC(); return w.c ? w.c : WC_TH[w.theme]; } // [edge, center, light]
 function wcBg(w) { var c = wcCols(); return w.c ? 'radial-gradient(circle at 38% 45%,' + c[1] + ',' + c[0] + ' 85%)' : 'linear-gradient(135deg,' + c[0] + ',' + c[1] + ' 55%,' + c[0] + ')'; }
 function WC() { var w = S.wc || (S.wc = store.get('wc', { theme: 'gold', stk: [] })); if (!w.stk) w.stk = []; if (!WC_TH[w.theme]) w.theme = 'gold'; return w; }
@@ -1309,13 +1319,13 @@ function wcStickerHtml(w, edit) {
   }).join('');
 }
 function wcardHtml(total, name, un) {
-  var w = WC(), th = wcCols(), usd = total * (Gifts.tonUsd || 0), edit = !!S.wcEdit;
+  var w = WC(), th = wcCols(), edit = !!S.wcEdit; total = wcTotal(total); var usd = total * (Gifts.tonUsd || 0);
   return '<div class="wcard" id="wcard" style="background:' + wcBg(w) + '"><div class="wpat"></div>' +
     '<div class="wbal">' + wcBalHtml(total) + '</div>' + (usd > 0 ? '<div class="wusd">$' + nf(usd, 2) + '</div>' : '') +
     '<div class="wname">' + esc((U.username ? U.username : name).toUpperCase()) + '</div>' +
     '<div class="wqr"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><path d="M14 14h2.5v2.5H14zM18 18h2.5v2.5H18z"/></svg></div>' +
     wcStickerHtml(w, edit) + '</div>' +
-    '<div class="pacts wcb"><button data-act="wcadd">' + ICON.plus + t('wc_sticker') + '</button><button data-act="wctheme">🎨 ' + t('wc_color') + '</button><button class="' + (edit ? 'on' : '') + '" data-act="wcedit">' + ICON.edit + t('wc_move') + '</button><button data-act="wcsave">' + ICON.dl + t('wc_save') + '</button></div>' +
+    '<div class="pacts wcb"><button data-act="wcadd">' + ICON.plus + t('wc_sticker') + '</button><button data-act="wctheme">🎨 ' + t('wc_color') + '</button><button class="' + (edit ? 'on' : '') + '" data-act="wcedit">' + ICON.edit + t('wc_move') + '</button><button data-act="wcsave">' + ICON.dl + t('wc_save') + '</button><button data-act="wcaddr">👛 ' + t('wc_wallet') + '</button></div>' +
     (edit && w.stk.length ? '<div class="pacts wcb"><button data-act="wcsmall">− ' + t('wc_size') + '</button><button data-act="wcbig">+ ' + t('wc_size') + '</button><button data-act="wcdel">🗑 ' + t('wc_remove') + '</button></div><div class="note">' + t('wc_hint') + '</div>' : '');
 }
 function wcBind() {
@@ -1333,6 +1343,7 @@ function wcBind() {
 function wcExport() {
   var w = WC(), th = wcCols(), W = 1280, H = 737, total = 0;
   S.prof.items.forEach(function (it) { var g = giftById(it.gid); if (g) total += g.floor * it.qty; });
+  total = wcTotal(total);
   var jobs = w.stk.map(function (st) { var g = giftById(st.gid); return g ? loadImgTry(Gifts.exportImgs(g, st.m || null)) : Promise.resolve(null); });
   modal('<div class="loading">' + t('generating') + '</div>');
   Promise.all(jobs).then(function (imgs) {
@@ -1391,7 +1402,7 @@ function paintProfile() {
     '<div class="val"><b style="font-size:18px">' + gv(total) + '</b> <span class="' + (pch >= 0 ? 'up-t' : 'down-t') + '">' + (pch > 0 ? '+' : '') + pch.toFixed(2) + '%</span><small>' + t('assets_value') + (cost > 0 ? ' · ' + t('pnl') + ' <span class="' + (total - cost >= 0 ? 'up-t' : 'down-t') + '">' + (total - cost >= 0 ? '+' : '') + gv(total - cost) + '</span>' : '') + '</small>' +
     '<button class="pulse" data-act="ppulse">' + ICON.pulse + '</button></div></div>' +
     '<div class="tabs">' + tabs + '</div>' + body;
-  wcBind();
+  wcBind(); wcFetchBal();
 }
 function vPortfolio(tok) {
   getGifts().then(function () {
@@ -1654,6 +1665,18 @@ var A = {
   wcmodel: function (v) {
     var w = WC(), i = +v, m = i >= 0 && S.wcMs && S.wcMs[i] ? S.wcMs[i].name : null, n = w.stk.length;
     w.stk.push({ gid: S.wcG, m: m, x: 76 - (n % 3) * 8, y: 66 - (n % 3) * 6, s: 26 }); S.wcSel = n; S.wcEdit = true; wcSave(); closeModal(); paintProfile();
+  },
+  wcaddr: function () {
+    var w = WC();
+    modal('<h3>' + t('wc_wallet') + '</h3><div class="seg"><button class="' + (w.src !== 'wallet' ? 'on' : '') + '" data-act="wcsrc" data-v="assets">' + t('wc_src_assets') + '</button><button class="' + (w.src === 'wallet' ? 'on' : '') + '" data-act="wcsrc" data-v="wallet">' + t('wc_src_wallet') + '</button></div>' +
+      '<div class="frow"><label>' + t('wc_addr') + '</label><input id="wc_addr" value="' + esc(w.addr || '') + '" placeholder="UQ… / EQ…" autocomplete="off" spellcheck="false"></div>' +
+      '<div class="note">' + t('wc_addr_note') + '</div><div class="btns"><button class="btn ghost" data-act="mclose">' + t('done') + '</button><button class="btn" data-act="wcaddrsave">' + t('alert_save') + '</button></div>');
+  },
+  wcsrc: function (v) { var w = WC(); w.src = v; wcSave(); document.querySelectorAll('#modal .seg button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-v') === v); }); },
+  wcaddrsave: function () {
+    var w = WC(), v = ($('#wc_addr').value || '').trim().replace(/\s+/g, '');
+    if (v && !/^[A-Za-z0-9_\-:]{40,70}$/.test(v)) { toast(t('wc_addr_bad')); return; }
+    w.addr = v; if (!v) w.src = 'assets'; S.wcBal = null; S.wcBalT = 0; wcSave(); closeModal(); paintProfile();
   },
   wcbig: function () { var w = WC(), st = w.stk[S.wcSel]; if (st) { st.s = Math.min(80, st.s + 5); wcSave(); paintProfile(); } },
   wcsmall: function () { var w = WC(), st = w.stk[S.wcSel]; if (st) { st.s = Math.max(8, st.s - 5); wcSave(); paintProfile(); } },
