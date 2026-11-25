@@ -209,6 +209,10 @@ function paintSubList(r) {
     return '<div class="kv"><span>' + esc(x.c) + ' ≤ ' + GEM + nf(x.p, 2) + (f ? '<br><small>' + esc(f) + '</small>' : '') + '</span><span class="subed"><input id="subp_' + i + '" type="number" inputmode="decimal" min="0" step="any" value="' + esc(x.p) + '"><button class="ib" data-act="subsave" data-v="' + i + '">✓</button><button class="ib" data-act="subdel" data-v="' + i + '">×</button></span></div>';
   }).join('');
 }
+function paintTkList(r) {
+  var box = $('#tk_list'); if (!box) return; var L = r && r.tracks || [];
+  box.innerHTML = L.map(function (x, i) { return '<div class="kv"><span>' + esc(x.slug) + '<br><small>' + esc([x.ms, x.bd, x.sy].filter(Boolean).join(' · ')) + (x.st ? ' · ' + GEM + nf(x.st, 2) : '') + '</small></span><button class="ib" data-act="tkdel" data-v="' + i + '">×</button></div>'; }).join('');
+}
 function paintAlertList(r) {
   var box = $('#al_list'); if (!box) return;
   var L = r && r.alerts || [];
@@ -708,7 +712,7 @@ var STAR_USD = 0.015, BDMAP = {}, BDP = null;
 var GS_MKN = { portals: 'Portals', mrkt: 'MRKT', tonnel: 'Tonnel', onchain: 'On-chain', tg: 'Telegram' };
 function mkIc(k) { var u = MKI[k === 'onchain' ? 'getgems' : k]; return u ? '<img class="mki" src="' + u + '" alt="">' : ''; }
 function mkTag(k, name) { return mkIc(k) + esc(name || k); }
-function gsS() { return S.gsr || (S.gsr = { mode: 'list', col: '', m: [], bd: [], sym: [], num: '', attrs: null, res: null, rows: [], page: 0, pages: 0, busy: false, err: '' }); }
+function gsS() { return S.gsr || (S.gsr = { mode: 'list', col: '', cols: [], m: [], bd: [], sym: [], num: '', attrs: null, res: null, rows: [], page: 0, pages: 0, busy: false, err: '' }); }
 function gsLbl(arr, ph) { return arr.length ? (arr.length === 1 ? arr[0] : arr[0] + ' +' + (arr.length - 1)) : ph; }
 function hx(v) { return typeof v === 'number' ? '#' + ('000000' + (v & 0xffffff).toString(16)).slice(-6) : (typeof v === 'string' ? (v.charAt(0) === '#' ? v : '#' + v) : null); }
 function bdColors() {
@@ -767,12 +771,12 @@ function paintGsearch() {
   $('#view').innerHTML =
     '<div class="seg gsm"><button class="' + (s.mode === 'list' ? 'on' : '') + '" data-act="gsmode" data-v="list">' + t('gs_prices') + '</button><button class="' + (s.mode === 'sales' ? 'on' : '') + '" data-act="gsmode" data-v="sales">' + t('gs_sales') + '</button></div>' +
     (workerOn() ? '' : '<div class="demo">' + t('gs_need_worker') + '</div>') +
-    '<div class="gsf">' + gsPickBtn('col', s.col || t('gs_gift'), s.col ? gsTile(s.col, null, '', 'xs') : '', false) +
+    '<div class="gsf">' + gsPickBtn('col', s.cols.length > 1 ? s.cols.length + ' ' + t('gs_gifts_n') : (s.cols[0] || t('gs_gift')), s.cols.length ? gsTile(s.cols[0], null, '', 'xs') : '', false) +
     gsPickBtn('m', gsLbl(s.m, t('gs_models')), s.m.length && s.col ? gsTile(s.col, s.m[0], '', 'xs') : '', !s.col) +
     gsPickBtn('bd', gsLbl(s.bd, t('gs_bds')), s.bd.length ? '<span class="gst xs" data-bd="' + esc(s.bd[0].toLowerCase()) + '"></span>' : '', !s.col) +
     gsPickBtn('sym', gsLbl(s.sym, t('gs_syms')), '', !s.col) +
     '<input id="gs_n" maxlength="6" value="' + esc(s.num) + '" placeholder="' + esc(t('gs_num')) + '"></div>' +
-    '<button class="btn" data-act="gsgo" style="width:100%;margin:10px 0 6px">' + t('gs_go') + '</button>' + (workerOn() ? '<button class="btn ghost" data-act="gssub" style="width:100%;margin:0 0 10px">🔔 ' + t('sub_btn') + '</button>' : '') + '<div id="gsres"></div>' +
+    '<button class="btn" data-act="gsgo" style="width:100%;margin:10px 0 6px">' + t('gs_go') + '</button>' + (workerOn() ? '<button class="btn ghost" data-act="gssub" style="width:100%;margin:0 0 8px">🔔 ' + t('sub_btn') + '</button><button class="btn ghost" data-act="gstrack" style="width:100%;margin:0 0 10px">🎯 ' + t('tk_title') + '</button>' : '') + '<div id="gsres"></div>' +
     '<div class="note">Data: Gift Satellite · Thanks to @GiftChanges for the API · ⭐ ≈ $' + STAR_USD + '</div>';
   paintGsRes();
 }
@@ -786,7 +790,8 @@ function gsPickRows(kind) {
   var s = gsS(), a = s.attrs || {}, list, ph = { col: null, m: t('gs_models'), bd: t('gs_bds'), sym: t('gs_syms') }[kind];
   if (kind === 'col') list = S.gscols && S.gscols.length ? S.gscols : (S.cache.gifts || []).map(function (x) { return x.name; }).sort();
   else list = ((kind === 'm' ? a.models : kind === 'bd' ? a.backdrops : (a.patterns || a.symbols)) || []).map(function (x) { return x.name; });
-  var cur = kind === 'col' ? [s.col] : s[kind], h = ph ? '<button class="opt gspr' + (cur.length ? '' : ' on') + '" data-act="gspsel" data-v="' + kind + '" data-n=""><span>' + esc(ph) + '</span></button>' : '';
+  var cur = kind === 'col' ? s.cols : s[kind], h = ph ? '<button class="opt gspr' + (cur.length ? '' : ' on') + '" data-act="gspsel" data-v="' + kind + '" data-n=""><span>' + esc(ph) + '</span></button>' : '';
+  if (kind === 'col') h = '<button class="opt gspr' + (cur.length ? '' : ' on') + '" data-act="gspsel" data-v="col" data-n=""><span>' + esc(t('gs_gift')) + '</span></button><button class="opt gspr' + (list.length && cur.length === list.length ? ' on' : '') + '" data-act="gspsel" data-v="col" data-n="*all"><span>☑ ' + esc(t('gs_all')) + ' (' + list.length + ')</span></button>';
   return h + list.map(function (n) {
     var ic = kind === 'col' ? gsTile(n, null, '', 'sm') : kind === 'm' ? gsTile(s.col, n, '', 'sm') : kind === 'bd' ? '<span class="gst sm" data-bd="' + esc(n.toLowerCase()) + '"></span>' : '';
     return '<button class="opt gspr' + (cur.indexOf(n) >= 0 ? ' on' : '') + '" data-act="gspsel" data-v="' + kind + '" data-n="' + esc(n) + '" data-q="' + esc(n.toLowerCase()) + '">' + ic + '<span class="gsn2">' + esc(n) + '</span><span>' + (cur.indexOf(n) >= 0 ? '✓' : '') + '</span></button>';
@@ -1686,19 +1691,31 @@ var A = {
   subsave: function (v) { var el = $('#subp_' + v), p = el ? parseFloat(el.value) : NaN; if (!(p > 0)) return; workerPost('/api/subs', { action: 'edit', index: +v, price: p }).then(function (r) { paintSubList(r); }); },
   subdel: function (v) { workerPost('/api/subs', { action: 'del', index: +v }).then(paintSubList); },
   gssub: function () {
-    var s = gsS(); if (!s.col) { toast(t('gs_pick')); return; }
+    var s = gsS(); if (!s.cols.length) { toast(t('gs_pick')); return; }
     var f = [s.m.length ? t('gs_models') + ': ' + s.m.join(', ') : '', s.bd.length ? t('gs_bds') + ': ' + s.bd.join(', ') : '', s.sym.length ? t('gs_syms') + ': ' + s.sym.join(', ') : ''].filter(Boolean).join(' · ');
-    modal('<h3>' + t('sub_title') + ' · ' + esc(s.col) + '</h3>' + (f ? '<div class="note">' + esc(f) + '</div>' : '') +
+    modal('<h3>' + t('sub_title') + ' · ' + esc(s.cols.length > 1 ? s.cols.length + ' ' + t('gs_gifts_n') : s.cols[0]) + '</h3>' + (f ? '<div class="note">' + esc(f) + '</div>' : '') +
       '<div class="frow"><label>' + t('sub_price') + '</label><input id="sub_p" type="number" inputmode="decimal" min="0" step="any"></div>' +
       '<div class="note">' + t('sub_note') + '</div>' +
       '<div class="btns"><button class="btn ghost" data-act="mclose">' + t('done') + '</button><button class="btn" data-act="gssubsave">' + t('alert_save') + '</button></div>');
   },
   gssubsave: function () {
     var s = gsS(), p = parseFloat($('#sub_p').value); if (!(p > 0)) return;
-    workerPost('/api/subs', { action: 'add', collection: s.col, models: s.m, backdrops: s.bd, symbols: s.sym, price: p }).then(function (r) {
-      closeModal(); toast(r && r.ok ? t('sub_ok') : t(r && r.error === 'limit' ? 'sub_limit' : 'alert_fail'));
-    });
+    var list = s.cols.slice(), n = list.length, okc = 0, lim = false;
+    function nxt() {
+      var c = list.shift(); if (!c) return Promise.resolve();
+      return workerPost('/api/subs', { action: 'add', collection: c, models: s.m, backdrops: s.bd, symbols: s.sym, price: p, quiet: n > 1 }).then(function (r) { if (r && r.ok) okc++; else if (r && r.error === 'limit') { lim = true; list = []; } return nxt(); });
+    }
+    nxt().then(function () { closeModal(); toast(okc ? t('sub_ok') + (n > 1 ? ' (' + okc + '/' + n + ')' : '') : t(lim ? 'sub_limit' : 'alert_fail')); });
   },
+  gstrack: function () {
+    modal('<h3>🎯 ' + t('tk_title') + '</h3><div class="note">' + t('tk_note') + '</div><div class="frow"><input id="tk_link" placeholder="t.me/nft/PlushPepe-1234" autocomplete="off" style="width:100%"></div><div class="btns"><button class="btn ghost" data-act="mclose">' + t('done') + '</button><button class="btn" data-act="tkadd">' + t('tk_add') + '</button></div><div id="tk_list"></div>');
+    workerPost('/api/track', { action: 'list' }).then(paintTkList);
+  },
+  tkadd: function () {
+    var el = $('#tk_link'), v = el ? el.value.trim() : ''; if (!v) return;
+    workerPost('/api/track', { action: 'add', link: v }).then(function (r) { if (r && r.ok) { el.value = ''; paintTkList(r); } else toast(t(r && r.error === 'limit' ? 'sub_limit' : r && r.error === 'dup' ? 'tk_dup' : 'tk_bad')); });
+  },
+  tkdel: function (v) { workerPost('/api/track', { action: 'del', index: +v }).then(paintTkList); },
   aldel: function (v) { workerPost('/api/alerts', { action: 'del', index: +v }).then(paintAlertList); },
   expshare: function () { try { navigator.share({ files: [S.expFile], title: CONFIG.BRAND }); } catch (e) {} },
   cpmode: function (v) { S.cpState.mode = v; S.cpState.userMode = true; paintCP(); },
@@ -1728,29 +1745,55 @@ var A = {
   gsrch: function (v) { gsS().mode = v === 'sales' ? 'sales' : 'list'; go({ type: 'gsearch' }); },
   gsmode: function (v) { gsS().mode = v; paintGsearch(); },
   gsgo: function () {
-    var s = gsS(); if (!s.col) { toast(t('gs_pick')); return; } if (!workerOn()) { toast(t('gs_need_worker')); return; }
-    if (s.mode === 'sales') { gsFetchSales(0); return; }
+    var s = gsS(); if (!s.cols.length) { toast(t('gs_pick')); return; } if (!workerOn()) { toast(t('gs_need_worker')); return; }
+    if (s.mode === 'sales') { if (s.cols.length !== 1) { toast(t('gs_one_sales')); return; } gsFetchSales(0); return; }
     s.busy = true; s.err = ''; paintGsRes();
-    workerPost('/api/gs', { kind: 'search', collection: s.col, models: s.m, backdrops: s.bd, symbols: s.sym, number: s.num }).then(function (r) {
-      s.busy = false; if (!r || !r.ok) { s.err = t('gs_err') + (r && r.error ? ' (' + r.error + ')' : ''); s.res = null; } else { s.res = r.data; var ek = Object.keys(r.errs || {}); if (ek.length && ek.length === Object.keys(r.data).length) { s.err = t('gs_err') + ' (' + r.errs[ek[0]] + ')'; s.res = null; } } paintGsRes();
-    });
+    if (s.cols.length === 1) {
+      workerPost('/api/gs', { kind: 'search', collection: s.cols[0], models: s.m, backdrops: s.bd, symbols: s.sym, number: s.num }).then(function (r) {
+        s.busy = false; if (!r || !r.ok) { s.err = t('gs_err') + (r && r.error ? ' (' + r.error + ')' : ''); s.res = null; } else { s.res = r.data; var ek = Object.keys(r.errs || {}); if (ek.length && ek.length === Object.keys(r.data).length) { s.err = t('gs_err') + ' (' + r.errs[ek[0]] + ')'; s.res = null; } } paintGsRes();
+      });
+      return;
+    }
+    var list = s.cols.slice(), tot = list.length, done = 0, acc = {}, tok = s.runTok = (s.runTok || 0) + 1, fails = 0;
+    function prog() { var b = $('#gsres'); if (b && s.busy) b.innerHTML = loadingBox() + '<div class="note" style="text-align:center">' + done + ' / ' + tot + '</div>'; }
+    function finish() {
+      s.busy = false; var any = false;
+      Object.keys(GS_MKN).forEach(function (k) { if (acc[k]) { acc[k].sort(function (x, y) { return x[5] - y[5]; }); acc[k] = acc[k].slice(0, 40); any = true; } });
+      if (!any) { s.err = t('gs_err'); s.res = null; } else s.res = acc;
+      paintGsRes();
+    }
+    function worker() {
+      if (s.runTok !== tok) return Promise.resolve();
+      var c = list.shift(); if (!c) return Promise.resolve();
+      return workerPost('/api/gs', { kind: 'search', collection: c, models: [], backdrops: s.bd, symbols: s.sym, number: s.num }).then(function (r) {
+        done++; if (r && r.ok && r.data) Object.keys(r.data).forEach(function (k) { if (r.data[k] && r.data[k].length) acc[k] = (acc[k] || []).concat(r.data[k]); }); else fails++;
+        prog(); return worker();
+      });
+    }
+    prog(); Promise.all([worker(), worker(), worker(), worker()]).then(function () { if (s.runTok === tok) finish(); });
   },
   gsmore: function () { gsFetchSales(gsS().page); },
   gspick: function (v, el) {
     if (el.classList.contains('dis')) return;
     var ttl = { col: t('gs_gift'), m: t('gs_models'), bd: t('gs_bds'), sym: t('gs_syms') }[v];
-    modal('<h3>' + esc(ttl) + '</h3><div class="search"><input id="gsq" placeholder="' + esc(t('adv_search')) + '" autocomplete="off"></div><div class="gspl">' + gsPickRows(v) + '</div>' + (v === 'col' ? '' : '<div class="btns"><button class="btn" data-act="gspdone">' + t('done') + '</button></div>'));
+    modal('<h3>' + esc(ttl) + '</h3><div class="search"><input id="gsq" placeholder="' + esc(t('adv_search')) + '" autocomplete="off"></div><div class="gspl">' + gsPickRows(v) + '</div><div class="btns"><button class="btn" data-act="gspdone">' + t('done') + '</button></div>');
     applyBd();
   },
   gspsel: function (v, el) {
     var s = gsS(), n = el.dataset.n || '';
-    if (v !== 'col') { // اختيار متعدد: بنفضل في المودال ونحدّث العلامات
-      if (!n) s[v] = []; else { var ix = s[v].indexOf(n); if (ix >= 0) s[v].splice(ix, 1); else s[v].push(n); }
-      var gl = document.querySelector('#modal .gspl'); if (gl) { gl.innerHTML = gsPickRows(v); applyBd(); var qi = $('#gsq'); if (qi && qi.value) qi.dispatchEvent(new Event('input', { bubbles: true })); }
-      paintGsearch(); return;
+    if (v === 'col') {
+      var all = S.gscols && S.gscols.length ? S.gscols : (S.cache.gifts || []).map(function (x) { return x.name; }).sort();
+      var before = s.cols.join('|');
+      if (!n) s.cols = []; else if (n === '*all') s.cols = s.cols.length === all.length ? [] : all.slice(); else { var cx = s.cols.indexOf(n); if (cx >= 0) s.cols.splice(cx, 1); else s.cols.push(n); }
+      s.col = s.cols.length === 1 ? s.cols[0] : '';
+      if (s.cols.join('|') !== before) { s.m = []; s.bd = []; s.sym = []; s.attrs = null; s.res = null; s.rows = []; s.page = 0; }
+      var gl0 = document.querySelector('#modal .gspl'); if (gl0) { gl0.innerHTML = gsPickRows('col'); applyBd(); var q0 = $('#gsq'); if (q0 && q0.value) q0.dispatchEvent(new Event('input', { bubbles: true })); }
+      paintGsearch(); if (s.col) gsLoadAttrs(); return;
     }
-    closeModal();
-    s.col = n; s.m = []; s.bd = []; s.sym = []; s.attrs = null; s.res = null; s.rows = []; s.page = 0; paintGsearch(); gsLoadAttrs();
+    // اختيار متعدد: بنفضل في المودال ونحدّث العلامات
+    if (!n) s[v] = []; else { var ix = s[v].indexOf(n); if (ix >= 0) s[v].splice(ix, 1); else s[v].push(n); }
+    var gl = document.querySelector('#modal .gspl'); if (gl) { gl.innerHTML = gsPickRows(v); applyBd(); var qi = $('#gsq'); if (qi && qi.value) qi.dispatchEvent(new Event('input', { bubbles: true })); }
+    paintGsearch();
   },
   gspdone: function () { closeModal(); paintGsearch(); },
   gsopen: function (v) { if (!v) return; var u = 'https://t.me/nft/' + v; try { Telegram.WebApp.openTelegramLink(u); } catch (e) { window.open(u, '_blank'); } },
