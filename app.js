@@ -1606,6 +1606,8 @@ var A = {
     modal('<h3>' + t('diagnostics') + '</h3><div id="dg" class="loading">' + t('loading') + '</div>');
     Gifts.diagnose().then(function (rows) {
       var el = $('#dg'); if (!el) return;
+      var sc = document.querySelector('script[src^="app.js"]'), idata = !!(window.Telegram && Telegram.WebApp && Telegram.WebApp.initData);
+      rows = rows.concat([['Worker URL (config.js)', !!CONFIG.WORKER_URL, CONFIG.WORKER_URL ? 'set' : 'empty'], ['Telegram initData', idata, idata ? 'ok' : 'missing — open from the bot menu button'], ['Files', true, sc ? sc.getAttribute('src') : '?']]);
       el.className = '';
       el.innerHTML = rows.map(function (r) {
         return '<div class="kv" style="padding:9px 0;gap:10px"><span style="flex:1">' + esc(r[0]) + '</span><b style="font-size:12px;text-align:end;color:var(--' + (r[1] ? 'up' : 'down') + ')">' + (r[1] ? '✓ ' : '✗ ') + esc(r[2]) + '</b></div>';
