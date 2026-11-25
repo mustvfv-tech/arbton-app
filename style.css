@@ -266,4 +266,4 @@ body[data-tab=crypto]::before{background-image:url(bg/crypto.jpg)}
 body[data-tab=stickers]::before{background-image:url(bg/stickers.jpg)}
 
 body{background:transparent}
-body::before{opacity:.6}
+body::before{opacity:.9}
