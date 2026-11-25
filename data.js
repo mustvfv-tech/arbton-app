@@ -531,6 +531,7 @@
     },
     // فحص كل مصدر على حدة، ويعرض النتيجة في الإعدادات
     diagnose: async function () {
+      try { await G.list(); } catch (e) {}
       const tests = [
         ['TG Gifts — floors', 'https://tggifts.com/data/floors-daily.json'],
         ['TG Gifts — models', MODEL_URLS[0]],
