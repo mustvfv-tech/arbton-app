@@ -257,3 +257,13 @@ img{display:block}
 .news{display:flex;gap:10px;padding:10px;margin:6px 0;border-radius:14px;background:var(--card);cursor:pointer}
 .news img{width:78px;height:78px;object-fit:cover;border-radius:10px;flex:none}.news .nb{flex:1;min-width:0}.news .nb>b{font-size:14px;line-height:1.35;display:block;margin-bottom:6px}
 .news .nm{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);flex-wrap:wrap}.news .nsrc{color:var(--accent);font-weight:700}
+
+.subed{display:flex;gap:4px;align-items:center}.subed input{width:78px;padding:6px;border-radius:8px;border:1px solid var(--line,#2a2a30);background:transparent;color:inherit;font:inherit}
+
+body::before{content:'';position:fixed;inset:0;z-index:-1;background-position:center top;background-size:cover;background-repeat:no-repeat;pointer-events:none}
+body[data-tab=gifts]::before{background-image:url(bg/gifts.jpg)}
+body[data-tab=crypto]::before{background-image:url(bg/crypto.jpg)}
+body[data-tab=stickers]::before{background-image:url(bg/stickers.jpg)}
+
+body{background:transparent}
+body::before{opacity:.6}

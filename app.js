@@ -175,6 +175,7 @@ function render() {
   killChart();
   var tok = ++S.tok;
   renderNav();
+  try { document.body.setAttribute('data-tab', S.tab); } catch (e) {}
   try { if (tg) { if (S.view) tg.BackButton.show(); else tg.BackButton.hide(); } } catch (e) {}
   var v = S.view;
   if (v) {
@@ -205,7 +206,7 @@ function paintSubList(r) {
   var box = $('#sub_list'); if (!box) return; var L = r && r.subs || []; if (!L.length) { box.innerHTML = ''; return; }
   box.innerHTML = '<h4 style="margin:12px 0 6px">' + t('sub_title') + '</h4>' + L.map(function (x, i) {
     var f = [(x.ms || []).join(', '), (x.bd || []).join(', '), (x.sy || []).join(', ')].filter(Boolean).join(' · ');
-    return '<div class="kv"><span>' + esc(x.c) + ' ≤ ' + GEM + nf(x.p, 2) + (f ? '<br><small>' + esc(f) + '</small>' : '') + '</span><button class="ib" data-act="subdel" data-v="' + i + '">×</button></div>';
+    return '<div class="kv"><span>' + esc(x.c) + ' ≤ ' + GEM + nf(x.p, 2) + (f ? '<br><small>' + esc(f) + '</small>' : '') + '</span><span class="subed"><input id="subp_' + i + '" type="number" inputmode="decimal" min="0" step="any" value="' + esc(x.p) + '"><button class="ib" data-act="subsave" data-v="' + i + '">✓</button><button class="ib" data-act="subdel" data-v="' + i + '">×</button></span></div>';
   }).join('');
 }
 function paintAlertList(r) {
@@ -1682,6 +1683,7 @@ var A = {
   wcsmall: function () { var w = WC(), st = w.stk[S.wcSel]; if (st) { st.s = Math.max(8, st.s - 5); wcSave(); paintProfile(); } },
   wcdel: function () { var w = WC(); if (S.wcSel != null && w.stk[S.wcSel]) { w.stk.splice(S.wcSel, 1); S.wcSel = w.stk.length ? w.stk.length - 1 : null; wcSave(); paintProfile(); } },
   wcsave: function () { wcExport(); },
+  subsave: function (v) { var el = $('#subp_' + v), p = el ? parseFloat(el.value) : NaN; if (!(p > 0)) return; workerPost('/api/subs', { action: 'edit', index: +v, price: p }).then(function (r) { paintSubList(r); }); },
   subdel: function (v) { workerPost('/api/subs', { action: 'del', index: +v }).then(paintSubList); },
   gssub: function () {
     var s = gsS(); if (!s.col) { toast(t('gs_pick')); return; }
