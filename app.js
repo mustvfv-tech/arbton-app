@@ -808,7 +808,7 @@ function gsLoadAttrs() {
 }
 function gsCard(x) {
   var ton = +x[5], usd = gsUsd(ton), n = String(x[0] || '').split('-').pop();
-  return '<div class="gsc" data-act="gsopen" data-v="' + esc(x[0]) + '"><div class="gsn">#' + esc(n) + '</div>' + gsTile(x[1], x[2], x[3]) +
+  return '<div class="gsc" data-act="gsact" data-v="' + esc(x[0]) + '"><div class="gsn">#' + esc(n) + '</div>' + gsTile(x[1], x[2], x[3]) +
     '<div class="gsp"><b>' + GEM + nf(ton, 2) + '</b><small>$' + (usd >= 100 ? nf(usd, 0) : nf(usd, 2)) + '</small><small>⭐ ' + nf(Math.round(usd / STAR_USD), 0) + '</small></div></div>';
 }
 function paintGsRes() {
@@ -1796,6 +1796,13 @@ var A = {
     paintGsearch();
   },
   gspdone: function () { closeModal(); paintGsearch(); },
+  gsact: function (v) {
+    if (!v) return;
+    modal('<h3>' + esc(v) + '</h3><div class="btns" style="flex-direction:column;gap:8px"><button class="btn" data-act="tkrow" data-v="' + esc(v) + '">🎯 ' + t('tk_title') + '</button><button class="btn ghost" data-act="gsopen" data-v="' + esc(v) + '">🎁 ' + t('open_gift') + '</button></div>');
+  },
+  tkrow: function (v) {
+    workerPost('/api/track', { action: 'add', link: v }).then(function (r) { closeModal(); toast(r && r.ok ? '🎯 ✓' : t(r && r.error === 'limit' ? 'sub_limit' : r && r.error === 'dup' ? 'tk_dup' : 'tk_bad')); });
+  },
   gsopen: function (v) { if (!v) return; var u = 'https://t.me/nft/' + v; try { Telegram.WebApp.openTelegramLink(u); } catch (e) { window.open(u, '_blank'); } },
   gmap: function () { S.g.map = !S.g.map; paintGifts(); },
   gift: function (v) { go({ type: 'gift', id: v }); },

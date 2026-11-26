@@ -261,9 +261,9 @@ img{display:block}
 .subed{display:flex;gap:4px;align-items:center}.subed input{width:78px;padding:6px;border-radius:8px;border:1px solid var(--line,#2a2a30);background:transparent;color:inherit;font:inherit}
 
 body::before{content:'';position:fixed;inset:0;z-index:-1;background-position:center top;background-size:cover;background-repeat:no-repeat;pointer-events:none}
-body[data-tab=gifts]::before{background-image:url(bg/gifts.jpg?v=44)}
-body[data-tab=crypto]::before{background-image:url(bg/crypto.jpg?v=44)}
-body[data-tab=stickers]::before{background-image:url(bg/stickers.jpg?v=44)}
+body[data-tab=gifts]::before{background-image:url(bg/gifts.jpg?v=45)}
+body[data-tab=crypto]::before{background-image:url(bg/crypto.jpg?v=45)}
+body[data-tab=stickers]::before{background-image:url(bg/stickers.jpg?v=45)}
 
 body{background:transparent}
 body::before{opacity:.9}
