@@ -806,9 +806,9 @@ function gsLoadAttrs() {
     paintGsearch();
   });
 }
-function gsCard(x) {
-  var ton = +x[5], usd = gsUsd(ton), n = String(x[0] || '').split('-').pop();
-  return '<div class="gsc" data-act="gsact" data-v="' + esc(x[0]) + '"><div class="gsn">#' + esc(n) + '</div>' + gsTile(x[1], x[2], x[3]) +
+function gsCard(x, mk) {
+  var mb = typeof mk === 'string' && mk ? '<span class="gsmb">' + mkIc(mk) + '</span>' : '', ton = +x[5], usd = gsUsd(ton), n = String(x[0] || '').split('-').pop();
+  return '<div class="gsc" data-act="gsact" data-v="' + esc(x[0]) + '">' + mb + '<div class="gsn">#' + esc(n) + '</div>' + gsTile(x[1], x[2], x[3]) +
     '<div class="gsp"><b>' + GEM + nf(ton, 2) + '</b><small>$' + (usd >= 100 ? nf(usd, 0) : nf(usd, 2)) + '</small><small>⭐ ' + nf(Math.round(usd / STAR_USD), 0) + '</small></div></div>';
 }
 function paintGsRes() {
@@ -817,6 +817,13 @@ function paintGsRes() {
   if (s.err) { box.innerHTML = '<div class="empty">' + esc(s.err) + '</div>'; return; }
   var h = '';
   if (s.mode === 'list') {
+    if (s.multi && s.multi.length) {
+      box.innerHTML = s.multi.map(function (g) {
+        var best = g.items[0];
+        return '<div class="gsmk gsmc"><span>' + esc(g.c) + '</span>' + (best ? '<b>' + GEM + nf(best.x[5], 2) + '</b>' : '') + '</div>' +
+          (best ? '<div class="gsr">' + g.items.map(function (it) { return gsCard(it.x, it.k); }).join('') + '</div>' : '<div class="note">' + t('gs_none') + '</div>');
+      }).join(''); applyBd(); return;
+    }
     if (!s.res) { box.innerHTML = '<div class="empty">' + t('gs_hint') + '</div>'; return; }
     var ks = Object.keys(GS_MKN), floors = '';
     ks.forEach(function (k) { var l = s.res[k]; if (l && l.length) floors += '<div class="gsfl"><small>' + mkTag(k, GS_MKN[k]) + '</small><b>' + GEM + nf(l[0][5], 2) + '</b></div>'; });
@@ -1749,24 +1756,29 @@ var A = {
     if (s.mode === 'sales') { if (s.cols.length !== 1) { toast(t('gs_one_sales')); return; } gsFetchSales(0); return; }
     s.busy = true; s.err = ''; paintGsRes();
     if (s.cols.length === 1) {
+      s.multi = null;
       workerPost('/api/gs', { kind: 'search', collection: s.cols[0], models: s.m, backdrops: s.bd, symbols: s.sym, number: s.num }).then(function (r) {
         s.busy = false; if (!r || !r.ok) { s.err = t('gs_err') + (r && r.error ? ' (' + r.error + ')' : ''); s.res = null; } else { s.res = r.data; var ek = Object.keys(r.errs || {}); if (ek.length && ek.length === Object.keys(r.data).length) { s.err = t('gs_err') + ' (' + r.errs[ek[0]] + ')'; s.res = null; } } paintGsRes();
       });
       return;
     }
-    var list = s.cols.slice(), tot = list.length, done = 0, acc = {}, tok = s.runTok = (s.runTok || 0) + 1, fails = 0;
+    var list = s.cols.slice(), order = s.cols.slice(), perCol = {}, tot = list.length, done = 0, acc = {}, tok = s.runTok = (s.runTok || 0) + 1, fails = 0;
     function prog() { var b = $('#gsres'); if (b && s.busy) b.innerHTML = loadingBox() + '<div class="note" style="text-align:center">' + done + ' / ' + tot + '</div>'; }
     function finish() {
       s.busy = false; var any = false;
       Object.keys(GS_MKN).forEach(function (k) { if (acc[k]) { acc[k].sort(function (x, y) { return x[5] - y[5]; }); acc[k] = acc[k].slice(0, 40); any = true; } });
-      if (!any) { s.err = t('gs_err'); s.res = null; } else s.res = acc;
+      if (!any) { s.err = t('gs_err'); s.res = null; s.multi = null; } else {
+        s.res = acc;
+        s.multi = order.map(function (c) { var it = perCol[c] || []; it.sort(function (p, q) { return p.x[5] - q.x[5]; }); return { c: c, items: it.slice(0, 6) }; });
+        s.multi.sort(function (p, q) { return (q.items.length ? 1 : 0) - (p.items.length ? 1 : 0); });
+      }
       paintGsRes();
     }
     function worker() {
       if (s.runTok !== tok) return Promise.resolve();
       var c = list.shift(); if (!c) return Promise.resolve();
       return workerPost('/api/gs', { kind: 'search', collection: c, models: [], backdrops: s.bd, symbols: s.sym, number: s.num }).then(function (r) {
-        done++; if (r && r.ok && r.data) Object.keys(r.data).forEach(function (k) { if (r.data[k] && r.data[k].length) acc[k] = (acc[k] || []).concat(r.data[k]); }); else fails++;
+        done++; if (r && r.ok && r.data) Object.keys(r.data).forEach(function (k) { if (r.data[k] && r.data[k].length) { acc[k] = (acc[k] || []).concat(r.data[k]); r.data[k].forEach(function (x) { (perCol[c] = perCol[c] || []).push({ x: x, k: k }); }); } }); else fails++;
         prog(); return worker();
       });
     }
@@ -1786,7 +1798,7 @@ var A = {
       var before = s.cols.join('|');
       if (!n) s.cols = []; else if (n === '*all') s.cols = s.cols.length === all.length ? [] : all.slice(); else { var cx = s.cols.indexOf(n); if (cx >= 0) s.cols.splice(cx, 1); else s.cols.push(n); }
       s.col = s.cols.length === 1 ? s.cols[0] : '';
-      if (s.cols.join('|') !== before) { s.m = []; s.bd = []; s.sym = []; s.attrs = null; s.res = null; s.rows = []; s.page = 0; }
+      if (s.cols.join('|') !== before) { s.m = []; s.bd = []; s.sym = []; s.attrs = null; s.res = null; s.multi = null; s.rows = []; s.page = 0; }
       var gl0 = document.querySelector('#modal .gspl'); if (gl0) { gl0.innerHTML = gsPickRows('col'); applyBd(); var q0 = $('#gsq'); if (q0 && q0.value) q0.dispatchEvent(new Event('input', { bubbles: true })); }
       paintGsearch(); if (s.col) gsLoadAttrs(); return;
     }
