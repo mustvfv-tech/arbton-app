@@ -36,6 +36,8 @@ let cols;
 try { cols = await call("/gift/collections"); }
 catch (e) { console.error(e.fatal ? "المفتاح GS_TOKEN مرفوض — راجع الـ Secret" : "فشل جلب الكوليكشنز: " + e.message); process.exit(1); }
 const names = (Array.isArray(cols) ? cols : []).map(c => c && c.name).filter(Boolean);
+// مجموعات إضافية يدوية (extra-collections.json) لو لسه مش في قائمة Gift Satellite — بتتضاف لو مش موجودة
+try { const extra = JSON.parse(fs.readFileSync("extra-collections.json", "utf8")), have = new Set(names.map(x => String(x).toLowerCase().replace(/[^a-z0-9]/g, ""))); for (const x of extra) { const k = String(x).toLowerCase().replace(/[^a-z0-9]/g, ""); if (x && !have.has(k)) { names.push(String(x)); have.add(k); console.log("extra collection:", x); } } } catch {}
 if (names.length < 20) { console.error("قائمة غير متوقعة:", names.length); process.exit(1); }
 fs.mkdirSync(OUT + "/sales", { recursive: true });
 const now = Math.floor(Date.now() / 1000);
@@ -75,19 +77,3 @@ for (const name of names) {
 console.log(`done: ok=${ok} fail=${fail} new=${newSales}`);
 if (fail > names.length * 0.3) process.exit(1);
 
-// ملخص "توب" آخر 24 ساعة (أكتر هدية وأكتر موديل مبيعًا) — بيقراه البوت
-try {
-  const since = now - 86400, gifts = [], models = {};
-  for (const f of fs.readdirSync(OUT + "/sales")) {
-    const d = readJSON(OUT + "/sales/" + f, null); if (!d || !d.s) continue;
-    let c = 0, v = 0;
-    for (const r of d.s) {
-      if (r[0] < since) continue; c++; v += r[1];
-      if (r[4]) { const k = d.n + "|" + r[4], m = (models[k] ||= { n: d.n, m: r[4], c: 0, v: 0 }); m.c++; m.v += r[1]; }
-    }
-    if (c) gifts.push({ n: d.n, c, v: Math.round(v * 100) / 100 });
-  }
-  const by = (a, b) => b.c - a.c || b.v - a.v;
-  fs.writeFileSync(OUT + "/top.json", JSON.stringify({ u: now, gifts: gifts.sort(by).slice(0, 10), models: Object.values(models).sort(by).slice(0, 10).map(m => ({ ...m, v: Math.round(m.v * 100) / 100 })) }));
-  console.log("top.json written");
-} catch (e) { console.log("top skip", e.message); }

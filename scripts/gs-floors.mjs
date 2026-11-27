@@ -38,6 +38,8 @@ let cols;
 try { cols = await get("/gift/collections"); }
 catch (e) { console.error(e.fatal ? "المفتاح GS_TOKEN مرفوض (401/403) — راجع الـ Secret" : "فشل جلب الكوليكشنز: " + e.message); process.exit(1); }
 const names = (Array.isArray(cols) ? cols : []).map(c => c && c.name).filter(Boolean);
+// مجموعات إضافية يدوية (extra-collections.json) لو لسه مش في قائمة Gift Satellite — بتتضاف لو مش موجودة
+try { const extra = JSON.parse(fs.readFileSync("extra-collections.json", "utf8")), have = new Set(names.map(x => String(x).toLowerCase().replace(/[^a-z0-9]/g, ""))); for (const x of extra) { const k = String(x).toLowerCase().replace(/[^a-z0-9]/g, ""); if (x && !have.has(k)) { names.push(String(x)); have.add(k); console.log("extra collection:", x); } } } catch {}
 if (names.length < 20) { console.error("قائمة الكوليكشنز غير متوقعة:", names.length); process.exit(1); }
 console.log("collections:", names.length);
 
