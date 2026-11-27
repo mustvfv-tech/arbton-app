@@ -784,7 +784,7 @@ function gsPickBtn(kind, label, ic, dis) { return '<button class="gspick' + (dis
 function gsCols() {
   if (S.gscols) return Promise.resolve(S.gscols);
   if (!workerOn()) return Promise.resolve([]);
-  return workerPost('/api/gs', { kind: 'collections' }).then(function (r) { S.gscols = r && r.ok && r.data && r.data.length ? r.data.slice().sort() : null; return S.gscols || []; });
+  return workerPost('/api/gs', { kind: 'collections' }).then(function (r) { S.gscols = r && r.ok && r.data && r.data.length ? r.data.slice().sort() : null; if (S.gscols) { var have = {}; S.gscols.forEach(function (x) { have[String(x).toLowerCase().replace(/[^a-z0-9]/g, '')] = 1; }); ['Hoarse Horse'].forEach(function (x) { if (!have[x.toLowerCase().replace(/[^a-z0-9]/g, '')]) { S.gscols.push(x); } }); S.gscols.sort(); } return S.gscols || []; });
 }
 function gsPickRows(kind) {
   var s = gsS(), a = s.attrs || {}, list, ph = { col: null, m: t('gs_models'), bd: t('gs_bds'), sym: t('gs_syms') }[kind];
