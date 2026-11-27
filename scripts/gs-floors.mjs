@@ -45,12 +45,14 @@ console.log("collections:", names.length);
 
 const found = {};   // found[name][market] = {p,n,s} | null
 const mfound = {};  // mfound[name][model][market] = أقل سعر ظاهر للموديل في العروض اللي رجعت
-let calls = 0, errors = 0;
+let calls = 0, errors = 0, skipped = 0;
+const DEADLINE = Date.now() + (+process.env.GS_BUDGET_MIN || 14) * 60000; // حد زمني: بعده نكمّل بآخر قيم محفوظة بدل ما التشغيل يعلّق ويتفشل
 async function runMarket(m) {
   for (const name of names) {
+    if (Date.now() > DEADLINE) { skipped++; const old = prev.collections[name] && prev.collections[name].markets && prev.collections[name].markets[m]; (found[name] ||= {})[m] = old === undefined ? null : old; continue; }
     const t0 = Date.now(); calls++;
     try {
-      const a = await get(`/search/${m}/${encodeURIComponent(name)}`);
+      const a = await get(`/search/${m}/${encodeURIComponent(name)}`, 3);
       const arr = (Array.isArray(a) ? a : []).filter(x => x && num(x.normalizedPrice) > 0);
       let best = null;
       for (const x of arr) {
@@ -75,7 +77,7 @@ async function runMarket(m) {
 try { await Promise.all(Object.keys(GAP).map(runMarket)); }
 catch (e) { console.error("توقف:", e.message); process.exit(1); }
 
-console.log(`calls=${calls} errors=${errors}`);
+console.log(`calls=${calls} errors=${errors} skipped=${skipped}`);
 if (errors > calls * 0.3) { console.error("أخطاء كتير، مش هستبدل الملف القديم"); process.exit(1); }
 
 const now = Math.floor(Date.now() / 1000);
