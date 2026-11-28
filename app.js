@@ -808,7 +808,7 @@ function gsLoadAttrs() {
 }
 function gsCard(x, mk) {
   var mb = typeof mk === 'string' && mk ? '<span class="gsmb">' + mkIc(mk) + '</span>' : '', ton = +x[5], usd = gsUsd(ton), n = String(x[0] || '').split('-').pop();
-  return '<div class="gsc" data-act="gsact" data-v="' + esc(x[0]) + '">' + mb + '<div class="gsn">#' + esc(n) + '</div>' + gsTile(x[1], x[2], x[3]) +
+  return '<div class="gsc"' + (x[7] ? '' : ' data-act="gsact" data-v="' + esc(x[0]) + '"') + '>' + mb + '<div class="gsn">' + (x[7] ? esc(x[2] || '') : '#' + esc(n)) + '</div>' + gsTile(x[1], x[2], x[3]) +
     '<div class="gsp"><b>' + GEM + nf(ton, 2) + '</b><small>$' + (usd >= 100 ? nf(usd, 0) : nf(usd, 2)) + '</small><small>⭐ ' + nf(Math.round(usd / STAR_USD), 0) + '</small></div></div>';
 }
 function paintGsRes() {
